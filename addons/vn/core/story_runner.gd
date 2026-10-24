@@ -9,7 +9,7 @@
 ## 设计约束：
 ## - 不是 autoload，不当根节点，不接管场景切换，不接管 root。
 ## - 只认两件事：章节节点有 play()，有 finished 信号。不要求继承任何基类。
-## - 参数状态存在自己身上（用户 add_child 进来的节点），删掉节点等于结束这场播放。
+## - 参数数据存在自己身上（用户 add_child 进来的节点），删掉节点等于结束这场播放。
 ## - 图只决定「下一段是谁」；章节内部怎么走，由 .gd 里的 if / for / await 决定。
 class_name StoryRunner
 extends Node
@@ -18,7 +18,7 @@ const GROUP := "vn_story"
 ## 防御：图成环且 guard 恒真时会无限跑，超过这么多次就停。
 const MAX_HOPS := 1000
 
-## 进入一个状态（章节或终止）
+## 进入一个片段（章节或终点）
 signal state_entered(id: String)
 ## 命中一条边
 signal transition_taken(from_id: String, to_id: String, guard: String)
@@ -33,7 +33,7 @@ var graph: StoryGraph
 ## 本局的参数表，_load_graph() 时从图里的 default 复制一份。
 ## 存在自己身上而不是全局，所以同时播两场互不干扰，删节点就等于结束这场。
 var params: Dictionary = {}
-## 当前所在状态 id。给外部查进度用（不含「将要进入」的那个）。
+## 当前所在片段 id。给外部查进度用（不含「将要进入」的那个）。
 var current := ""
 
 ## start() 到 _finish() 之间为 true，防止重复开播。
@@ -120,7 +120,7 @@ func _run() -> void:
 
 		var st: Dictionary = graph.get_state(id)
 		if st.is_empty():
-			push_error("[StoryRunner] 状态不存在：%s" % id)
+			push_error("[StoryRunner] 片段不存在：%s" % id)
 			break
 
 		current = id
@@ -182,11 +182,11 @@ func _load_graph() -> void:
 	])
 
 
-## 播一个章节状态。返回 false 表示这一节没法播，整场应当停下。
+## 播一个章节片段。返回 false 表示这一节没法播，整场应当停下。
 func _play_state(st: Dictionary) -> bool:
 	var path := String(st.get("chapter", ""))
 	if path == "":
-		push_error("[StoryRunner] 状态 %s 没有指定章节脚本" % st["id"])
+		push_error("[StoryRunner] 片段 %s 没有指定章节脚本" % st["id"])
 		return false
 
 	var script: GDScript = load(path)

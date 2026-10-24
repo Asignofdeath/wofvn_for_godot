@@ -15,7 +15,7 @@ const TMP_SUFFIX := ".vntmp"
 var path := ""
 ## 原样透传的字段，编辑器不解释
 var version := 1
-## 起始状态 id，原样透传
+## 起始片段 id，原样透传
 var entry := ""
 ## 原样保留，编辑器不解释参数，只负责不丢
 var params: Dictionary = {}
@@ -43,7 +43,7 @@ func load_from(p: String) -> Array:
 		issues.append("JSON 解析失败：第 %d 行 %s" % [json.get_error_line(), json.get_error_message()])
 		return issues
 	if not json.data is Dictionary:
-		issues.append("根节点必须是对象")
+		issues.append("文件根必须是对象")
 		return issues
 
 	reset()
@@ -52,7 +52,7 @@ func load_from(p: String) -> Array:
 	return issues
 
 
-## 清空成「新建」状态。只在载入成功后调用。
+## 清空成一份空白文档。只在载入成功后调用。
 func reset() -> void:
 	version = 1
 	entry = ""
@@ -168,7 +168,7 @@ func find_state(id: String) -> int:
 	return -1
 
 
-## 找 from→to 这条边。图里同一对节点之间最多一条边，所以 (from, to) 就能定位。
+## 找 from→to 这条边。图里同一对片段之间最多一条边，所以 (from, to) 就能定位。
 func find_transition(from_id: String, to_id: String) -> int:
 	for i in transitions.size():
 		if String(transitions[i]["from"]) == from_id and String(transitions[i]["to"]) == to_id:
@@ -196,8 +196,8 @@ func add_state(id: String, type: String, chapter: String, pos: Vector2) -> bool:
 	return true
 
 
-## 删节点，连带删掉以它为起点或终点的所有边。
-## 不留悬空边是硬要求：留着的话运行时校验会报「目标状态不存在」。
+## 删片段，连带删掉以它为起点或终点的所有边。
+## 不留悬空边是硬要求：留着的话运行时校验会报「目标片段不存在」。
 func remove_state(id: String) -> void:
 	var i := find_state(id)
 	if i >= 0:
@@ -221,7 +221,7 @@ func set_state_chapter(id: String, chapter: String) -> void:
 		states[i]["chapter"] = chapter
 
 
-## 新增边时 priority 自动接在该节点已有边之后，避免新边抢在最前面。
+## 新增边时 priority 自动接在该片段已有边之后，避免新边抢在最前面。
 func add_transition(from_id: String, to_id: String) -> bool:
 	if from_id == "" or to_id == "" or from_id == to_id:
 		return false

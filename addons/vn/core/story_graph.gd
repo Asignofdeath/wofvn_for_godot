@@ -4,18 +4,18 @@
 ## - 不执行任何东西，只被查询。真正跑的是章节 .gd 里的代码。
 ## - guard 只能引用参数表，不能访问场景、不能调函数。这条限制保证图永远不会变成第二个程序。
 ## - 数据是 JSON：可手改、可 git diff、字段变了迁移便宜。pos 只给编辑器用，运行时忽略。
-## - 不持有「当前状态」，那是 StoryRunner 的事。
+## - 不持有「当前片段」，那是 StoryRunner 的事。
 class_name StoryGraph
 extends RefCounted
 
-## 两种状态类型。chapter 要播脚本，end 只表示「到此为止」。
-## 只有这两种，是为了让图永远不可能变成第二个程序——没有分支节点、没有循环节点。
+## 两种片段类型。chapter 要播脚本，end 只表示「到此为止」。
+## 只有这两种，是为了让图永远不可能变成第二个程序——没有分支片段、没有循环片段。
 const TYPE_CHAPTER := "chapter"
 const TYPE_END := "end"
 
 ## 数据格式版本。目前只记录、不参与判断，将来字段不兼容时用来做迁移。
 var version := 1
-## 起始状态 id。空 = 校验报错，图不启动。
+## 起始片段 id。空 = 校验报错，图不启动。
 var entry := ""
 ## id -> {id, type, chapter, pos, ...}
 var states: Dictionary = {}
@@ -26,7 +26,7 @@ var params: Dictionary = {}
 
 ## 致命问题：出现就不该启动
 var errors: Array[String] = []
-## 不影响运行的问题：孤立节点、未连线
+## 不影响运行的问题：孤立片段、未连线
 var warnings: Array[String] = []
 
 ## 参数名列表，顺序固定。Expression.execute 按位置传参，靠它把 Dictionary 摊成 Array。
@@ -56,7 +56,7 @@ static func load_file(path: String) -> StoryGraph:
 		graph.errors.append("JSON 解析失败：第 %d 行 %s" % [json.get_error_line(), json.get_error_message()])
 		return graph
 	if not json.data is Dictionary:
-		graph.errors.append("根节点必须是对象")
+		graph.errors.append("文件根必须是对象")
 		return graph
 
 	graph._build(json.data)
@@ -82,7 +82,7 @@ func has_state(id: String) -> bool:
 	return states.has(id)
 
 
-## 取状态数据，不存在返回空字典（调用方判 is_empty 即可，不用先 has_state）。
+## 取片段数据，不存在返回空字典（调用方判 is_empty 即可，不用先 has_state）。
 func get_state(id: String) -> Dictionary:
 	return states.get(id, {})
 
@@ -150,10 +150,10 @@ func _build(data: Dictionary) -> void:
 		var st: Dictionary = (item as Dictionary).duplicate(true)
 		var id := String(st.get("id", ""))
 		if id == "":
-			errors.append("有状态缺少 id")
+			errors.append("有片段缺少 id")
 			continue
 		if states.has(id):
-			errors.append("状态 id 重复：%s" % id)
+			errors.append("片段 id 重复：%s" % id)
 			continue
 		st["id"] = id
 		st["type"] = String(st.get("type", TYPE_CHAPTER))
@@ -268,7 +268,7 @@ func _validate() -> void:
 	if entry == "":
 		errors.append("缺少 entry")
 	elif not states.has(entry):
-		errors.append("entry 指向不存在的状态：%s" % entry)
+		errors.append("entry 指向不存在的片段：%s" % entry)
 
 	var has_incoming := {}
 	for from_id in transitions:
@@ -278,7 +278,7 @@ func _validate() -> void:
 		for tr in transitions[from_id]:
 			var to_id: String = tr["to"]
 			if not states.has(to_id):
-				errors.append("%s -> %s：目标状态不存在" % [from_id, to_id])
+				errors.append("%s -> %s：目标片段不存在" % [from_id, to_id])
 				continue
 			has_incoming[to_id] = true
 			if to_id == from_id:
@@ -287,8 +287,8 @@ func _validate() -> void:
 	for id in states:
 		var st: Dictionary = states[id]
 		if String(st["type"]) == TYPE_CHAPTER and String(st.get("chapter", "")) == "":
-			warnings.append("状态 %s 还没指定章节脚本（草稿态）" % id)
+			warnings.append("片段 %s 还没指定章节脚本（草稿态）" % id)
 		if String(st["type"]) != TYPE_END and not transitions.has(id):
-			warnings.append("状态 %s 是死路（没有任何出边）" % id)
+			warnings.append("片段 %s 是死路（没有任何出边）" % id)
 		if id != entry and not has_incoming.has(id):
-			warnings.append("状态 %s 不可达（没有入边）" % id)
+			warnings.append("片段 %s 不可达（没有入边）" % id)

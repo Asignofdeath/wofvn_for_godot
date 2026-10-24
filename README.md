@@ -91,7 +91,7 @@ ERROR: res://demo/stage.tscn:19 - [ext_resource] referenced non-existent resourc
 ### 3. 写剧本 + 画图
 
 - 剧本：一个 `extends Node` 的 `.gd`，有 `play()` 和 `signal finished`
-- 图：`res://story/story_graph.json`，或在「流程图」标签里点「＋ 节点」画出来
+- 图：`res://story/story_graph.json`，或在「流程图」标签里点「＋ 片段」画出来
 - 场景里放一个 `StoryRunner` 节点，把 `graph_path` 指向那份 JSON
 - 立绘站位：在「立绘摆位」标签里拖一下，存成 `res://stage/stage_layout.json`
 
@@ -180,7 +180,7 @@ $GODOT --headless --path . --script res://tools/test_stage.gd
 
 ### 已知真缺口
 
-**单入口。** `StoryRunner.start()` 只能从 `graph.entry` 开始播，无法指定起始状态。所以「读档直达第 5 章」「章节选择」目前做不到。改法是给 `start()` 加一个可选的起始状态参数，属于扩展接口。
+**单入口。** `StoryRunner.start()` 只能从 `graph.entry` 开始播，无法指定起始片段。所以「读档直达第 5 章」「章节选择」目前做不到。改法是给 `start()` 加一个可选的起始片段参数，属于扩展接口。
 
 **动作库偏薄。** 现在只有 `say / bg / sprite / choice / param`。`wait`、`hide_sprite`、`shake`、`bgm` 都没加——按 DESIGN.md 的规矩，同一个调用在真实剧本里写第三遍才提为方法。
 
@@ -193,5 +193,5 @@ $GODOT --headless --path . --script res://tools/test_stage.gd
 | [docs/DESIGN.md](docs/DESIGN.md) | **设计的底线**：三个判据、动作 vs 结构、DSL 化信号、依赖方向、加功能前的五问、裁决记录 |
 | [docs/CONTRACT.md](docs/CONTRACT.md) | 运行时契约：四个组的完整签名、Signal 语义、降级与自检 |
 | [docs/GRAPH.md](docs/GRAPH.md) | 图数据格式：JSON 字段、guard 语法与限制、校验规则 |
-| [docs/EDITOR.md](docs/EDITOR.md) | 流程图面板：每个按钮做什么、节点卡片怎么读、保存行为 |
+| [docs/EDITOR.md](docs/EDITOR.md) | 流程图面板：每个按钮做什么、片段卡片怎么读、保存行为 |
 | [docs/STAGE.md](docs/STAGE.md) | 立绘摆位：目录约定、`stage_layout.json` 字段、面板用法、可选舞台节点 |

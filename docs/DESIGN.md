@@ -67,7 +67,7 @@ Ren'Py 好用是因为**它同时是引擎**。我们寄生在 Godot 上：DSL �
 | 文件 | 唯一职责 | 不允许长出来的东西 |
 |---|---|---|
 | `vn_kit.gd` | 剧本可 await 的动作 | 状态、缓存、配置读取 |
-| `core/story_graph.gd` | 图数据 + guard 求值（只被查询） | 遍历场景、持有「当前状态」、写文件 |
+| `core/story_graph.gd` | 图数据 + guard 求值（只被查询） | 遍历场景、持有「当前片段」、写文件 |
 | `core/story_runner.gd` | 段间路由 | 渲染、UI、存档、场景切换 |
 | `editor/graph_doc.gd` | JSON ↔ 内存 | 碰 `SceneTree`、碰 `Control` |
 | `editor/flow_screen.gd` | 面板 UI 与交互 | 直接读写文件（走 graph_doc） |
@@ -122,7 +122,7 @@ vn_kit.gd ──> 引擎（get_tree().get_first_node_in_group）
 | 争议点 | 裁决 | 理由 |
 |---|---|---|
 | 要不要自带剧本 DSL | **不做** | 见上文 Ren'Py 对照表 |
-| 图里能不能写循环 / 条件分支节点 | **不能** | 图只回答「下一段是谁」，可编程就图灵完备 |
+| 图里能不能写循环 / 条件分支片段 | **不能** | 图只回答「下一段是谁」，可编程就图灵完备 |
 | guard 能不能访问场景 / 调函数 | **不能** | 只读参数表 + 词法白名单，否则是第二个程序 |
 | 要不要提供章节基类 | **不提供** | 模板只有 `extends Node`；`has_method` 就够 |
 | 图数据用 `.tres` 还是 JSON | **JSON** | 可手改、可 diff、删掉插件仍可读，迁移便宜 |

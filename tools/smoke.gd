@@ -43,8 +43,8 @@ func _run() -> void:
 		await process_frame
 
 	if runner != null:
-		print("[SMOKE] 结果：状态=%s 参数=%s" % [runner.current, runner.params])
-		print("[SMOKE] %s" % ("已走到终止" if done[0] else "未结束（可能点击次数不够）"))
+		print("[SMOKE] 结果：片段=%s 参数=%s" % [runner.current, runner.params])
+		print("[SMOKE] %s" % ("已走到终点" if done[0] else "未结束（可能点击次数不够）"))
 	print("[SMOKE] 完成")
 	quit(0)
 

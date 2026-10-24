@@ -60,13 +60,13 @@ var _issue_list: ItemList
 ## 靠 meta("purpose") 区分这次是哪种用途
 var _file_dialog: FileDialog
 
-## 「＋ 节点」下拉菜单
+## 「＋ 片段」下拉菜单
 var _add_menu: MenuButton
 
-## 节点编辑对话框，内容每次重建
+## 片段编辑对话框，内容每次重建
 var _dialog: AcceptDialog
 var _dialog_body: VBoxContainer
-## 当前正在编辑的节点 id。为空表示对话框没打开
+## 当前正在编辑的片段 id。为空表示对话框没打开
 var _dialog_id := ""
 
 ## 上一帧的缩放值，用来判断是否需要刷新百分比文字
@@ -162,12 +162,12 @@ func _build_ui() -> void:
 	_top.add_child(_save_btn)
 
 	_add_menu = MenuButton.new()
-	_add_menu.text = "＋ 节点"
+	_add_menu.text = "＋ 片段"
 	_add_menu.flat = true
 	_add_menu.add_theme_color_override("font_color", C_MUTED)
 	var popup := _add_menu.get_popup()
-	popup.add_item("剧本节点", 0)
-	popup.add_item("终止节点", 1)
+	popup.add_item("剧情片段", 0)
+	popup.add_item("终点", 1)
 	popup.id_pressed.connect(_on_add_node)
 	_top.add_child(_add_menu)
 
@@ -246,7 +246,7 @@ func _build_ui() -> void:
 	# 长提示文案不参与最小宽度计算，否则窗口一窄就把整个面板撑宽
 	_hint.clip_text = true
 	_hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	_hint.text = "拖节点移动 · 空白处拖动平移 · 滚轮缩放 · 从节点右侧圆点拖线连接 · 双击节点编辑 · Delete 删除"
+	_hint.text = "拖片段移动 · 空白处拖动平移 · 滚轮缩放 · 从片段右侧圆点拖线连接 · 双击片段编辑 · Delete 删除"
 	_hint_bar.add_child(_hint)
 
 	_status = Label.new()
@@ -290,7 +290,7 @@ func _build_ui() -> void:
 	add_child(_file_dialog)
 
 	_dialog = AcceptDialog.new()
-	_dialog.title = "编辑节点"
+	_dialog.title = "编辑片段"
 	_dialog.ok_button_text = "完成"
 	_dialog.min_size = Vector2i(440, 200)
 	add_child(_dialog)
@@ -394,7 +394,7 @@ func _on_file_selected(p: String) -> void:
 ## ---- 章节脚本：契约探测 + 模板生成 ----
 
 ## 探测一份章节脚本是否满足 StoryRunner 的三条契约。
-## 返回空串 = 没问题；否则返回一句短语原因（用于节点卡片和问题条）。
+## 返回空串 = 没问题；否则返回一句短语原因（用于片段卡片和问题条）。
 ##
 ## 这三条不满足时运行时才炸，而且表现是「剧情永久卡住」，所以要在编辑器里先查出来。
 func _probe_script(path: String) -> String:
@@ -443,7 +443,7 @@ func play() -> void:
 """ % node_id
 
 
-## 生成脚本文件并绑到当前编辑的节点上。已存在则不覆盖。
+## 生成脚本文件并绑到当前编辑的片段上。已存在则不覆盖。
 func _create_chapter(path: String) -> void:
 	if FileAccess.file_exists(path):
 		_set_hint("文件已存在，没有覆盖：%s" % path)
@@ -471,13 +471,13 @@ func _create_chapter(path: String) -> void:
 
 ## ---- 重建视图 ----
 
-## 按内存数据把整个画布重建一遍。只在结构变化（增删节点/边、换文件）时调用；
-## 纯移动节点不用重建，GraphNode 自己就在动。
+## 按内存数据把整个画布重建一遍。只在结构变化（增删片段/边、换文件）时调用；
+## 纯移动片段不用重建，GraphNode 自己就在动。
 func _rebuild_all() -> void:
 	_sync_positions()
 	_graph.clear_connections()
 	# 先摘出场景树再 queue_free：本方法会被 GraphEdit 的连线/删除信号回调调用，
-	# 在信号处理链里立即 free() 节点是不安全的。
+	# 在信号处理链里立即 free() 卡片是不安全的。
 	for c in _graph.get_children():
 		if c is GraphNode:
 			_graph.remove_child(c)
@@ -495,14 +495,14 @@ func _rebuild_all() -> void:
 	_refresh_issues()
 
 
-## 造一个节点卡片：标题 = id（entry 前缀 ▶），正文 = 章节脚本状态 + 每条出边一行。
+## 造一个片段卡片：标题 = id（entry 前缀 ▶），正文 = 章节脚本状态 + 每条出边一行。
 func _add_node_ui(state: Dictionary) -> GraphNode:
 	var id := String(state["id"])
 	var kind := String(state["type"])
 	var is_entry := id == _doc.entry
 
 	var node := GraphNode.new()
-	# 节点名必须是合法 NodePath，id 里若含 / : @ 会被引擎改名，导致 _id_of 找不回来。
+	# 卡片名必须是合法 NodePath，id 里若含 / : @ 会被引擎改名，导致 _id_of 找不回来。
 	# 显示用的 title 仍是原 id，meta vn_id 也存原值。
 	node.name = id.validate_node_name()
 	node.title = ("▶ " if is_entry else "") + id
@@ -537,7 +537,7 @@ func _add_node_ui(state: Dictionary) -> GraphNode:
 				sub.add_theme_color_override("font_color", C_MUTED)
 		sub.tooltip_text = path
 	else:
-		sub.text = "终止"
+		sub.text = "终点"
 		sub.add_theme_color_override("font_color", C_MUTED)
 	body.add_child(sub)
 
@@ -607,7 +607,7 @@ func _style_node(node: GraphNode, kind: String, is_entry: bool) -> void:
 
 ## ---- 交互 ----
 
-## 双击节点开编辑框。GraphEdit 的 node_selected / node_deselected 不适合做这个，
+## 双击片段开编辑框。GraphEdit 的 node_selected / node_deselected 不适合做这个，
 ## 因为拖动也会触发选中，用 gui_input 判双击最直接。
 func _on_node_gui_input(event: InputEvent, node: GraphNode) -> void:
 	if event is InputEventMouseButton:
@@ -630,7 +630,7 @@ func _open_dialog(id: String) -> void:
 		_dialog_body.remove_child(c)
 		c.queue_free()
 
-	_dialog.title = "编辑节点 · %s" % id
+	_dialog.title = "编辑片段 · %s" % id
 
 	if String(st["type"]) == "chapter":
 		var row := HBoxContainer.new()
@@ -662,7 +662,7 @@ func _open_dialog(id: String) -> void:
 
 		var make := Button.new()
 		make.text = "新建"
-		make.tooltip_text = "按契约模板生成一份新的章节脚本，并绑到这个节点"
+		make.tooltip_text = "按契约模板生成一份新的章节脚本，并绑到这个片段"
 		make.pressed.connect(func() -> void:
 			_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 			_file_dialog.filters = PackedStringArray(["*.gd ; 章节脚本"])
@@ -689,7 +689,7 @@ func _open_dialog(id: String) -> void:
 
 	if not has_edge:
 		var none := Label.new()
-		none.text = "还没有出边。回到图上，从这个节点右侧的圆点拖到目标节点即可。"
+		none.text = "还没有出边。回到图上，从这个片段右侧的圆点拖到目标片段即可。"
 		none.add_theme_color_override("font_color", C_MUTED)
 		none.add_theme_font_size_override("font_size", 11)
 		none.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -757,13 +757,13 @@ func _make_edge_row(tr: Dictionary) -> Control:
 	return row
 
 
-## 新增节点。位置取当前视口中心（图坐标 = 屏幕坐标 / zoom），
-## 再按已有节点数往下错开一点，连点几次不会全叠在一起。
+## 新增片段。位置取当前视口中心（图坐标 = 屏幕坐标 / zoom），
+## 再按已有片段数往下错开一点，连点几次不会全叠在一起。
 func _on_add_node(kind_id: int) -> void:
 	var kind := "chapter" if kind_id == 0 else "end"
 	var id := _doc.next_id("ch") if kind == "chapter" else "end"
 	if _doc.find_state(id) >= 0:
-		_set_hint("已存在节点 %s" % id)
+		_set_hint("已存在片段 %s" % id)
 		return
 	var center := (_graph.scroll_offset + _graph.size * 0.5) / maxf(_graph.zoom, 0.01)
 	var pos := center - Vector2(80, 40) + Vector2(0, 30 * _doc.states.size())
@@ -805,8 +805,8 @@ func _on_disconnection_request(from_node: StringName, from_port: int, to_node: S
 	_rebuild_all()
 
 
-## Delete 键删除。删节点会连带删掉它的所有出边和入边（VNGraphDoc.remove_state 负责）。
-## 先收集 id 再删，不要在遍历视图节点的同一个循环里改数据。
+## Delete 键删除。删片段会连带删掉它的所有出边和入边（VNGraphDoc.remove_state 负责）。
+## 先收集 id 再删，不要在遍历卡片视图的同一个循环里改数据。
 func _on_delete_nodes_request(nodes: Array) -> void:
 	var ids: Array = []
 	for n in nodes:
@@ -819,7 +819,7 @@ func _on_delete_nodes_request(nodes: Array) -> void:
 	_touch()
 
 
-## 缩放到刚好装下全部节点，并把内容中心移到视口中心。
+## 缩放到刚好装下全部片段，并把内容中心移到视口中心。
 func _fit_canvas() -> void:
 	var rect := Rect2()
 	var first := true
@@ -842,7 +842,7 @@ func _fit_canvas() -> void:
 	_zoom_label.text = "%d%%" % roundi(_graph.zoom * 100.0)
 
 
-## 视觉状态复位。不动节点坐标，节点位置属于数据，不该被一个视图按钮改掉。
+## 视觉状态复位。不动片段坐标，片段位置属于数据，不该被一个视图按钮改掉。
 func _reset_view() -> void:
 	_graph.zoom = 1.0
 	_graph.scroll_offset = Vector2.ZERO
@@ -865,7 +865,7 @@ func _sync_positions() -> void:
 			_doc.set_state_pos(String(n.get_meta("vn_id")), (n as GraphNode).position_offset)
 
 
-## 按 id 找视图节点。找不到返回 null，调用方自己判。
+## 按 id 找卡片视图。找不到返回 null，调用方自己判。
 func _node_by_id(id: String) -> GraphNode:
 	for n in _graph.get_children():
 		if n is GraphNode and String(n.get_meta("vn_id", "")) == id:
@@ -881,13 +881,13 @@ func _id_of(node_name: String) -> String:
 	return String(n.get_meta("vn_id"))
 
 
-## 节点数按画布上真实存在的卡片统计，不是按数据条数，这样重建漏节点能看出来。
+## 片段数按画布上真实存在的卡片统计，不是按数据条数，这样重建漏卡片能看出来。
 func _refresh_stats() -> void:
 	var count := 0
 	for n in _graph.get_children():
 		if n is GraphNode:
 			count += 1
-	_stats.text = "%d 节点 · %d 连线" % [count, _doc.transitions.size()]
+	_stats.text = "%d 片段 · %d 连线" % [count, _doc.transitions.size()]
 
 
 ## 标记有未保存改动。只影响「保存 •」的显示，不拦操作、不弹窗。
