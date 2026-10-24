@@ -2,8 +2,8 @@
 
 给通用游戏引擎补一块 VN 开发用的工具，**不是**做一个 VN 专属运行时。
 
-> **当前只包含一个工具：VN 运行时流程组织。**
-> 立绘摆位、动效编辑、存档、翻译抽取等都没有做，见文末「进度」。
+> **当前有两个工具：① VN 运行时流程组织 ② 立绘摆位。**
+> 动效编辑、存档、翻译抽取等都没有做，见文末「进度」。
 
 ---
 
@@ -11,8 +11,8 @@
 
 | | |
 |---|---|
-| 解决的问题 | VN 的流程（这一段播完接哪一段）在纯代码里写会很快变成一片 `if`，看不见全貌 |
-| 提供的方案 | 一张章节级路由图（JSON）+ 一个 GraphEdit 编辑器 + 一个可选的路由器节点 |
+| 解决的问题 | VN 的流程（这一段播完接哪一段）在纯代码里写会很快变成一片 `if`，看不见全貌；立绘站位靠手调 offset 又慢又对不齐 |
+| 提供的方案 | ① 章节级路由图（JSON）+ GraphEdit 编辑器 + 可选路由器节点<br>② 槽位数据（JSON）+ 摆位面板 + 可选舞台节点 |
 | 不提供的 | 运行时框架、UI 组件库、剧本 DSL、指令系统、项目管理面板 |
 
 剧本仍然是 `.gd` 协程：
@@ -72,7 +72,7 @@ ERROR: res://demo/stage.tscn:19 - [ext_resource] referenced non-existent resourc
 
 把 `addons/vn/` 整个拷进项目，在 项目设置 → 插件 里启用「VN Toolkit」。
 
-顶部主屏幕会出现「VN 图」标签。
+顶部主屏幕会出现「VN 工具」，里面两个标签：**流程图**、**立绘摆位**。
 
 ### 2. 加三个协作节点
 
@@ -86,11 +86,14 @@ ERROR: res://demo/stage.tscn:19 - [ext_resource] referenced non-existent resourc
 
 不需要继承任何基类，不需要注册。**不实现也能跑**，对应动作会降级为「等一帧然后跳过」，并在启动时警告缺了哪个。
 
+`vn_stage` 可以直接用现成的 `VNSpriteStage` 节点（读一份 JSON + 按目录约定找图），也可以自己写。见 [docs/STAGE.md](docs/STAGE.md)。
+
 ### 3. 写剧本 + 画图
 
 - 剧本：一个 `extends Node` 的 `.gd`，有 `play()` 和 `signal finished`
-- 图：`res://story/story_graph.json`，或在「VN 图」面板里点「＋ 节点」画出来
+- 图：`res://story/story_graph.json`，或在「流程图」标签里点「＋ 节点」画出来
 - 场景里放一个 `StoryRunner` 节点，把 `graph_path` 指向那份 JSON
+- 立绘站位：在「立绘摆位」标签里拖一下，存成 `res://stage/stage_layout.json`
 
 详细说明见 [docs/](docs/)。
 
@@ -120,10 +123,16 @@ addons/vn/                  ← 发布边界，可整体拷到别的项目
 ├── core/
 │   ├── story_graph.gd      图数据 + guard 求值（运行时可读，不依赖编辑器）
 │   └── story_runner.gd     可选路由器节点
+├── stage/
+│   ├── stage_layout.gd     槽位数据 + 路径约定 + 摆放几何（面板与运行时共用）
+│   └── sprite_stage.gd     可选舞台节点，实现 vn_stage
 └── editor/
-    ├── vn_editor_plugin.gd 插件入口，挂主屏幕面板
-    ├── flow_screen.gd      GraphEdit 图编辑器（面板 UI + 交互 + 契约探测）
-    └── graph_doc.gd        JSON ↔ 内存，原子写
+    ├── vn_editor_plugin.gd 插件入口，挂主屏幕
+    ├── vn_home.gd          主屏幕宿主（一个 TabContainer，每个工具一个标签）
+    ├── vn_theme.gd         两个面板共用的配色
+    ├── flow_screen.gd      流程图面板（GraphEdit + 交互 + 契约探测）
+    ├── graph_doc.gd        图的 JSON ↔ 内存，原子写
+    └── stage_screen.gd     立绘摆位面板
 
 demo/                       ← 契约的可运行验证物，不属于项目开发范围
 tools/                      ← 回归脚本
@@ -147,9 +156,14 @@ VN_PICK=1 $GODOT --headless --path . --script res://tools/smoke.gd
 
 # 编辑器面板布局回归（模拟拖控制台分隔条等父容器改尺寸）
 $GODOT --headless --path . --script res://tools/test_layout.gd
+
+# 舞台：几何 / 存盘往返 / Signal 时序 / 缺图降级 / 面板数据通路
+$GODOT --headless --path . --script res://tools/test_stage.gd
 ```
 
-改布局或改编辑器面板后必须跑 `test_layout.gd`。它用 `VBoxContainer` 镜像编辑器的 `MainScreen`，在 8 种尺寸下断言面板与画布都等于父容器可用区域。
+改布局或改编辑器面板后必须跑 `test_layout.gd`。它用 `VBoxContainer` 镜像编辑器的 `MainScreen`，再套一层 `TabContainer` 镜像真实层级，在 8 种尺寸下断言：宿主撑满、面板等于宿主减标签栏、画布等于面板减顶栏底栏、预览画布是 16:9。
+
+改过槽位算法或舞台节点后必须跑 `test_stage.gd`（39 项）。
 
 ---
 
@@ -158,14 +172,17 @@ $GODOT --headless --path . --script res://tools/test_layout.gd
 | 工具 | 状态 |
 |---|---|
 | **VN 运行时流程组织** | **完成**（图数据 + guard + 路由器 + 编辑器 + 校验） |
-| 立绘摆位器 | 未开始 |
+| **立绘摆位** | **完成**（槽位数据 + 面板 + 可选 `VNSpriteStage` + 缺图降级） |
 | 动效 / 转场编辑器 | 未开始 |
 | 存档 / 回退 | 未开始（rollback 粒度方案 A/B/C 未定） |
 | 翻译抽取 | 未开始 |
+| 音频调度（BGM 交叉淡入 / 语音） | 未开始，需新增 `vn_audio` 组 |
 
 ### 已知真缺口
 
 **单入口。** `StoryRunner.start()` 只能从 `graph.entry` 开始播，无法指定起始状态。所以「读档直达第 5 章」「章节选择」目前做不到。改法是给 `start()` 加一个可选的起始状态参数，属于扩展接口。
+
+**动作库偏薄。** 现在只有 `say / bg / sprite / choice / param`。`wait`、`hide_sprite`、`shake`、`bgm` 都没加——按 DESIGN.md 的规矩，同一个调用在真实剧本里写第三遍才提为方法。
 
 ---
 
@@ -176,4 +193,5 @@ $GODOT --headless --path . --script res://tools/test_layout.gd
 | [docs/DESIGN.md](docs/DESIGN.md) | **设计的底线**：三个判据、动作 vs 结构、DSL 化信号、依赖方向、加功能前的五问、裁决记录 |
 | [docs/CONTRACT.md](docs/CONTRACT.md) | 运行时契约：四个组的完整签名、Signal 语义、降级与自检 |
 | [docs/GRAPH.md](docs/GRAPH.md) | 图数据格式：JSON 字段、guard 语法与限制、校验规则 |
-| [docs/EDITOR.md](docs/EDITOR.md) | 编辑器面板：每个按钮做什么、节点卡片怎么读、保存行为 |
+| [docs/EDITOR.md](docs/EDITOR.md) | 流程图面板：每个按钮做什么、节点卡片怎么读、保存行为 |
+| [docs/STAGE.md](docs/STAGE.md) | 立绘摆位：目录约定、`stage_layout.json` 字段、面板用法、可选舞台节点 |

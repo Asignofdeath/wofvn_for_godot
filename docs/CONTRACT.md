@@ -56,6 +56,17 @@ await VNKit.bg(self, "教室", 0.8)
 await VNKit.sprite(self, "凛", "平静", "center", 0.4)
 ```
 
+### 现成的两个实现
+
+契约只规定「组名 + 方法签名」，不规定实现。仓库里有两份可以直接抄或直接用的：
+
+| 实现 | 特点 | 文档 |
+|---|---|---|
+| `VNSpriteStage`（`addons/vn/stage/sprite_stage.gd`） | 读 `stage_layout.json` + 按目录约定找图，缺图用占位色块 | [STAGE.md](STAGE.md) |
+| `demo/stage.gd` | 色块占位，只证明契约跑得通 | 不属于项目开发范围 |
+
+两者都可以整个删掉换自己的。
+
 ---
 
 ## `vn_dialogue_box` — 对话

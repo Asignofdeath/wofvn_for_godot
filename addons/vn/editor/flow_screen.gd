@@ -13,17 +13,17 @@ const DEFAULT_GRAPH := "res://demo/story/story_graph.json"
 const TOP_H := 52
 const HINT_H := 26
 
-## 配色。集中在这里是因为 GraphEdit 的主题只能逐个 set_theme_*_override，散在调用处改不动。
-const C_BG := Color("#0d1117")        ## 画布底色
-const C_SURFACE := Color("#1a1f28")   ## 顶栏 / 底栏 / 节点卡片底色
-const C_SURFACE_HI := Color("#242b38")## 节点标题条底色
-const C_BORDER := Color("#2a3040")    ## 分隔线、节点描边
-const C_TEXT := Color("#e8e4dc")      ## 节点标题文字
-const C_MUTED := Color("#8a9aaa")     ## 次要文字、次要按钮
-const C_ACCENT := Color("#c4a882")    ## 强调色：entry 节点、选中态、未保存标记
-const C_SCRIPT := Color("#c47a5a")    ## 章节节点的类型色
-const C_ERROR := Color("#e08080")     ## 错误
-const C_WARN := Color("#e0c080")      ## 提示 / 草稿态
+## 配色统一放在 VNEditorTheme，这里是短别名（面板里引用太多次，不想每处写全名）。
+const C_BG := VNEditorTheme.BG
+const C_SURFACE := VNEditorTheme.SURFACE
+const C_SURFACE_HI := VNEditorTheme.SURFACE_HI
+const C_BORDER := VNEditorTheme.BORDER
+const C_TEXT := VNEditorTheme.TEXT
+const C_MUTED := VNEditorTheme.MUTED
+const C_ACCENT := VNEditorTheme.ACCENT
+const C_SCRIPT := VNEditorTheme.SCRIPT
+const C_ERROR := VNEditorTheme.ERROR
+const C_WARN := VNEditorTheme.WARN
 
 ## 内存里的图数据，只管读写，不碰 UI
 var _doc := VNGraphDoc.new()
@@ -185,6 +185,10 @@ func _build_ui() -> void:
 	_file_label.add_theme_color_override("font_color", C_MUTED)
 	_file_label.add_theme_font_size_override("font_size", 12)
 	_file_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# 顶栏在 ScrollContainer 里，容器只按最小宽度分配；带 ellipsis 的 Label 最小宽度是 1，
+	# 不显式给下限的话文件名会被压成 0 宽（看起来就是「空的」）。
+	_file_label.custom_minimum_size.x = 130
+	_file_label.clip_text = true
 	_file_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_top.add_child(_file_label)
 
@@ -296,16 +300,9 @@ func _build_ui() -> void:
 	_dialog.add_child(_dialog_body)
 
 
-## 顶栏 / 底栏的底板：底色 + 左右内边距，顶栏多一条下边线。
+## 顶栏 / 底栏的底板。实现在 VNEditorTheme，两个面板共用。
 func _bar_style(with_bottom_line: bool) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = C_SURFACE
-	sb.content_margin_left = 14
-	sb.content_margin_right = 14
-	if with_bottom_line:
-		sb.border_color = C_BORDER
-		sb.border_width_bottom = 1
-	return sb
+	return VNEditorTheme.bar_style(with_bottom_line)
 
 
 ## GraphEdit 的主题只能靠 override 打，做一个统一的入口，别在 _build_ui 里散着改。
@@ -409,11 +406,12 @@ func _probe_script(path: String) -> String:
 	if not res is GDScript:
 		return "不是 GDScript"
 	var gd := res as GDScript
-	if not gd.can_instantiate():
-		return "无法实例化"
+	# 别用 can_instantiate() 当判据：编辑器里非 @tool 脚本的 can_instantiate() 恒为 false
+	# （引擎的安全判定——编辑器不许实例化非 tool 脚本），而章节脚本正是非 tool 的。
+	# 拿它判断会把每一份正常章节都标成「无法实例化」。
 	var inst: Variant = gd.new()
 	if inst == null:
-		return "new() 返回空"
+		return "无法实例化"
 	if not inst is Node:
 		return "根类型不是 Node"
 	var node := inst as Node
