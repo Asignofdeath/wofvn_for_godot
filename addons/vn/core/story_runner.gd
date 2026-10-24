@@ -102,6 +102,7 @@ func _run() -> void:
 	if graph == null or graph.errors.size() > 0:
 		_finish()
 		return
+	_check_collaborators()
 
 	var id := graph.entry
 	var hops := 0
@@ -141,6 +142,23 @@ func _run() -> void:
 		id = String(tr["to"])
 
 	_finish()
+
+
+## 开播前自检：VNKit 靠组名找协作节点，缺了只会跑到那一步才报错，
+## 而且降级成"一闪而过"，日志里很容易被忽略。开场一次性列清楚。
+func _check_collaborators() -> void:
+	var need := {
+		VNKit.GROUP_STAGE: "set_bg(id, fade) / set_sprite(who, pose, slot, fade)",
+		VNKit.GROUP_DIALOGUE: "show_line(speaker, text) -> Signal",
+		VNKit.GROUP_CHOICE: "present(options) -> int",
+	}
+	var missing: Array[String] = []
+	for group: String in need:
+		if get_tree().get_first_node_in_group(group) == null:
+			missing.append("  - %s（需要 %s）" % [group, need[group]])
+	if missing.is_empty():
+		return
+	push_warning("[StoryRunner] 缺少协作节点，用到时会跳过：\n%s" % "\n".join(missing))
 
 
 func _load_graph() -> void:
