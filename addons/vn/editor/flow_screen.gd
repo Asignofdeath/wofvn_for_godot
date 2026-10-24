@@ -398,7 +398,7 @@ func _on_file_selected(p: String) -> void:
 			_create_chapter(p)
 
 
-## ---- 章节脚本：契约探测 + 模板生成 ----
+## ---- 章节脚本：契约探测 + 脚本生成 ----
 
 ## 探测一份章节脚本是否满足 StoryRunner 的三条契约。
 ## 返回空串 = 没问题；否则返回一句短语原因（用于片段卡片和问题条）。
@@ -669,7 +669,7 @@ func _open_dialog(id: String) -> void:
 
 		var make := Button.new()
 		make.text = "新建"
-		make.tooltip_text = "按契约模板生成一份新的章节脚本，并绑到这个片段"
+		make.tooltip_text = "按契约生成一份新的章节脚本，并绑到这个片段"
 		make.pressed.connect(func() -> void:
 			_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
 			_file_dialog.filters = PackedStringArray(["*.gd ; 章节脚本"])

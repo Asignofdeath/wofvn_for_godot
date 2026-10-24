@@ -63,7 +63,7 @@ await VNKit.sprite(self, "凛", "平静", "center", 0.4)
 | 实现 | 特点 | 文档 |
 |---|---|---|
 | `VNSpriteStage`（`addons/vn/stage/sprite_stage.gd`） | 槽位=同名子节点，按目录约定找图，缺图用占位色块，背景两层交叉淡入。**不算坐标** | [STAGE.md](STAGE.md) |
-| `demo/stage.gd` | 色块占位，只证明契约跑得通 | 不属于项目开发范围 |
+| 模板里的 `demo/stage.gd` | 色块占位，只证明契约跑得通 | 属于模板内容，不属于 `addons/` |
 
 两者都可以整个删掉换自己的。
 
