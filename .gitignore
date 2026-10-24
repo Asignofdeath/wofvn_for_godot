@@ -1,0 +1,22 @@
+# Godot 4
+.godot/
+*.translation
+
+# 导出产物
+export/
+build/
+
+# 参考源：独立项目（自带 .git 与 node_modules），不随本仓库
+VN Studio_1.0.0（参考源）/
+
+# 工具与系统生成的临时目录
+.workbuddy/
+NVIDIA Corporation/
+
+# 图数据保存时的临时文件（正常会被改名替换，崩溃时可能残留）
+*.vntmp
+
+# 系统垃圾
+Thumbs.db
+desktop.ini
+.DS_Store

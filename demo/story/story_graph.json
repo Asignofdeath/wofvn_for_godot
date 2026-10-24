@@ -1,0 +1,65 @@
+{
+	"version": 1,
+	"entry": "ch01",
+	"params": {
+		"affection": {
+			"label": "好感",
+			"type": "int",
+			"default": 0.0
+		},
+		"has_key": {
+			"label": "拿到钥匙",
+			"type": "flag",
+			"default": false
+		}
+	},
+	"states": [
+		{
+			"id": "ch01",
+			"type": "chapter",
+			"chapter": "res://demo/story/ch01.gd",
+			"pos": [
+				80,
+				180
+			]
+		},
+		{
+			"id": "ch02",
+			"type": "chapter",
+			"chapter": "res://demo/story/ch02.gd",
+			"pos": [
+				420,
+				180
+			]
+		},
+		{
+			"id": "end",
+			"type": "end",
+			"chapter": "",
+			"pos": [
+				760,
+				180
+			]
+		}
+	],
+	"transitions": [
+		{
+			"from": "ch01",
+			"to": "ch02",
+			"guard": "affection >= 5",
+			"priority": 1
+		},
+		{
+			"from": "ch01",
+			"to": "end",
+			"guard": "",
+			"priority": 2
+		},
+		{
+			"from": "ch02",
+			"to": "end",
+			"guard": "",
+			"priority": 1
+		}
+	]
+}
