@@ -357,6 +357,85 @@ func _on_file_selected(p: String) -> void:
 				_touch()
 				_rebuild_all()
 				_open_dialog(_dialog_id)
+		"new_chapter":
+			_create_chapter(p)
+
+
+## ---- 章节脚本：契约探测 + 模板生成 ----
+
+## 探测一份章节脚本是否满足 StoryRunner 的三条契约。
+## 返回空串 = 没问题；否则返回一句短语原因（用于节点卡片和问题条）。
+##
+## 这三条不满足时运行时才炸，而且表现是「剧情永久卡住」，所以要在编辑器里先查出来。
+func _probe_script(path: String) -> String:
+	if not ResourceLoader.exists(path):
+		return "脚本不存在"
+	var res := ResourceLoader.load(path)
+	if res == null:
+		return "加载失败"
+	if not res is GDScript:
+		return "不是 GDScript"
+	var gd := res as GDScript
+	if not gd.can_instantiate():
+		return "无法实例化"
+	var inst: Variant = gd.new()
+	if inst == null:
+		return "new() 返回空"
+	if not inst is Node:
+		return "根类型不是 Node"
+	var node := inst as Node
+	var problem := ""
+	if not node.has_method("play"):
+		problem = "缺少 play()"
+	elif not node.has_signal("finished"):
+		problem = "缺少 finished 信号"
+	node.free()
+	return problem
+
+
+func _chapter_template(node_id: String) -> String:
+	return """## 章节：%s（由 VN 图编辑器生成）
+##
+## StoryRunner 只认三件事，不要求继承任何基类：
+##   1. extends Node（或任何 Node 派生类型）
+##   2. 有 play() 方法
+##   3. 有 finished 信号，并在流程结束时 emit
+extends Node
+
+signal finished
+
+
+func play() -> void:
+	# 这一节的流程写在这里，例如：
+	# await VNKit.say(self, "旁白", "第一句话")
+	finished.emit()
+""" % node_id
+
+
+## 生成脚本文件并绑到当前编辑的节点上。已存在则不覆盖。
+func _create_chapter(path: String) -> void:
+	if FileAccess.file_exists(path):
+		_set_hint("文件已存在，没有覆盖：%s" % path)
+		return
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		_set_hint("创建失败：%s" % error_string(FileAccess.get_open_error()))
+		return
+	f.store_string(_chapter_template(_dialog_id))
+	f.close()
+
+	if Engine.is_editor_hint():
+		var fs := EditorInterface.get_resource_filesystem()
+		if fs != null:
+			fs.scan()
+
+	var i := _doc.find_state(_dialog_id)
+	if i >= 0:
+		_doc.states[i]["chapter"] = path
+		_touch()
+		_rebuild_all()
+		_open_dialog(_dialog_id)
+	_set_hint("已生成 %s" % path)
 
 
 ## ---- 重建视图 ----
@@ -415,8 +494,13 @@ func _add_node_ui(state: Dictionary) -> GraphNode:
 			sub.text = "未指定脚本"
 			sub.add_theme_color_override("font_color", C_WARN)
 		else:
-			sub.text = path.get_file()
-			sub.add_theme_color_override("font_color", C_MUTED)
+			var problem := _probe_script(path)
+			if problem != "":
+				sub.text = problem
+				sub.add_theme_color_override("font_color", C_ERROR)
+			else:
+				sub.text = path.get_file()
+				sub.add_theme_color_override("font_color", C_MUTED)
 		sub.tooltip_text = path
 	else:
 		sub.text = "终止"
@@ -535,6 +619,19 @@ func _open_dialog(id: String) -> void:
 			_file_dialog.popup_centered_ratio(0.55)
 		)
 		row.add_child(pick)
+
+		var make := Button.new()
+		make.text = "新建"
+		make.tooltip_text = "按契约模板生成一份新的章节脚本，并绑到这个节点"
+		make.pressed.connect(func() -> void:
+			_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+			_file_dialog.filters = PackedStringArray(["*.gd ; 章节脚本"])
+			_file_dialog.current_dir = "res://demo/story"
+			_file_dialog.current_file = "%s.gd" % id
+			_file_dialog.set_meta("purpose", "new_chapter")
+			_file_dialog.popup_centered_ratio(0.55)
+		)
+		row.add_child(make)
 		_dialog_body.add_child(row)
 
 	var edge_title := Label.new()
@@ -751,19 +848,35 @@ func _refresh_issues() -> void:
 	if _issue_list == null:
 		return
 	_issue_list.clear()
+
+	# 图数据本身的问题（StoryGraph 校验）
 	var g := StoryGraph.load_dict(_doc.to_dict())
-	for m in g.errors:
+	var errors: Array = g.errors.duplicate()
+	var warns: Array = g.warnings.duplicate()
+
+	# 章节脚本的契约问题（运行时才炸，且表现为剧情卡住）
+	for st in _doc.states:
+		if String(st["type"]) != "chapter":
+			continue
+		var path := String(st.get("chapter", ""))
+		if path == "":
+			continue
+		var problem := _probe_script(path)
+		if problem != "":
+			errors.append("%s 的脚本%s：%s" % [st["id"], problem, path])
+
+	for m in errors:
 		var i := _issue_list.add_item("错误  %s" % m)
 		_issue_list.set_item_custom_fg_color(i, C_ERROR)
-	for m in g.warnings:
+	for m in warns:
 		var i := _issue_list.add_item("提示  %s" % m)
 		_issue_list.set_item_custom_fg_color(i, C_WARN)
 
-	if g.errors.size() > 0:
-		_issue_btn.text = "✕ %d 个错误" % g.errors.size()
+	if errors.size() > 0:
+		_issue_btn.text = "✕ %d 个错误" % errors.size()
 		_issue_btn.add_theme_color_override("font_color", C_ERROR)
-	elif g.warnings.size() > 0:
-		_issue_btn.text = "⚠ %d 个提示" % g.warnings.size()
+	elif warns.size() > 0:
+		_issue_btn.text = "⚠ %d 个提示" % warns.size()
 		_issue_btn.add_theme_color_override("font_color", C_WARN)
 	else:
 		_issue_btn.text = "✓ 无问题"
