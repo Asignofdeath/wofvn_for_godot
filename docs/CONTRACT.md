@@ -40,7 +40,7 @@ func set_sprite(who: String, pose: String, slot: String = "center", fade: float 
 | `id` | 背景标识，由你定义（demo 里是 `"教室"` / `"夜晚"`） |
 | `who` | 角色名。同一个 `who` 复用同一个立绘实例 |
 | `pose` | 表情 / 姿态标识。**插件不解释它**，随你用在贴图切换、动画切换或忽略 |
-| `slot` | 槽位标识，demo 用 `left` / `center` / `right`，但插件不限定取值 |
+| `slot` | 槽位标识。插件不限定取值；`VNSpriteStage` 把它当「子节点名」用 |
 | `fade` | 淡入时长（秒）。实现可以忽略它 |
 
 **返回的 Signal 必须在这段动作「视觉上完成」后 emit**，因为剧本是 `await` 它的：
@@ -62,10 +62,12 @@ await VNKit.sprite(self, "凛", "平静", "center", 0.4)
 
 | 实现 | 特点 | 文档 |
 |---|---|---|
-| `VNSpriteStage`（`addons/vn/stage/sprite_stage.gd`） | 读 `stage_layout.json` + 按目录约定找图，缺图用占位色块 | [STAGE.md](STAGE.md) |
+| `VNSpriteStage`（`addons/vn/stage/sprite_stage.gd`） | 槽位=同名子节点，按目录约定找图，缺图用占位色块，背景两层交叉淡入。**不算坐标** | [STAGE.md](STAGE.md) |
 | `demo/stage.gd` | 色块占位，只证明契约跑得通 | 不属于项目开发范围 |
 
 两者都可以整个删掉换自己的。
+
+> **摆位不归插件管。** 立绘放在哪、多大，由场景里槽位节点的 anchors 决定，用 Godot 自己的 2D 视图调。曾经做过一个「立绘摆位面板」，已删除——理由见 [DESIGN.md](DESIGN.md) 的裁决记录。
 
 ---
 
@@ -164,7 +166,7 @@ WARNING: [StoryRunner] 缺少协作节点，用到时会跳过：
 
 | 要求 | 检查方式 |
 |---|---|
-| 能 `new()` 出 Node | 「VN 工具 → 流程图」面板会探测并标红 |
+| 能 `new()` 出 Node | 「VN 图」面板会探测并标红 |
 | 有 `play()` 方法 | 同上 |
 | 有 `finished` 信号 | 同上 |
 
