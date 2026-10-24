@@ -89,11 +89,6 @@ static func get_param(host: Node, key: String, fallback: Variant = null) -> Vari
 	return runner.get_param(key, fallback)
 
 
-## 存档点占位。等 rollback 方案（A/B/C）定了再实现。
-static func checkpoint(_host: Node, _tag: String = "") -> void:
-	pass
-
-
 ## 从 host 所在的场景树里找第一个在 group 里的节点。
 ## 用引擎自带的组查找，不自建注册表：删掉插件，这个组和这些方法仍然归用户所有。
 static func _find(host: Node, group: String) -> Node:
