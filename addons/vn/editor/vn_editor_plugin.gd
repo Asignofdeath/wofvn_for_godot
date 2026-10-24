@@ -7,11 +7,15 @@
 @tool
 extends EditorPlugin
 
+## 面板脚本。preload 而不是 class_name，是为了让插件整体拷走时不必先在项目里注册类名。
 const FlowScreen := preload("res://addons/vn/editor/flow_screen.gd")
 
+## 主屏幕上的面板实例。_make_visible 只切 visible，不增删节点。
 var _screen: Control
 
 
+## 挂面板。注意 add_child 到 MainScreen 后，面板自己要挂 SIZE_EXPAND_FILL，
+## 否则它只会得到一条按最小高度的矮带（见 flow_screen.gd 顶部注释）。
 func _enter_tree() -> void:
 	_screen = FlowScreen.new()
 	_screen.name = "VN 图"

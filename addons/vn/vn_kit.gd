@@ -11,10 +11,12 @@
 class_name VNKit
 extends RefCounted
 
-const GROUP_DIALOGUE := "vn_dialogue_box"
-const GROUP_CHOICE := "vn_choice_box"
-const GROUP_STAGE := "vn_stage"
-const GROUP_STORY := "vn_story"
+## 四个约定组名。插件认的全部契约就是这四个字符串 + 下面几个方法签名。
+## 没有基类、没有注册表：节点加进组、实现方法，就被找到了。
+const GROUP_DIALOGUE := "vn_dialogue_box"   ## 需要 show_line(speaker, text) -> Signal
+const GROUP_CHOICE := "vn_choice_box"       ## 需要 present(options) -> int
+const GROUP_STAGE := "vn_stage"             ## 需要 set_bg(id, fade) / set_sprite(who, pose, slot, fade)
+const GROUP_STORY := "vn_story"             ## StoryRunner，参数表的持有者
 
 
 ## 显示一句对白，等到玩家点击推进后返回。
@@ -79,6 +81,7 @@ static func set_param(host: Node, key: String, value: Variant) -> void:
 	runner.set_param(key, value)
 
 
+## 读参数。没有 StoryRunner 时返回 fallback，不报错——剧本可以当它永远跑在「无路由」环境里。
 static func get_param(host: Node, key: String, fallback: Variant = null) -> Variant:
 	var runner := _find(host, GROUP_STORY)
 	if runner == null or not runner.has_method("get_param"):
@@ -91,12 +94,15 @@ static func checkpoint(_host: Node, _tag: String = "") -> void:
 	pass
 
 
+## 从 host 所在的场景树里找第一个在 group 里的节点。
+## 用引擎自带的组查找，不自建注册表：删掉插件，这个组和这些方法仍然归用户所有。
 static func _find(host: Node, group: String) -> Node:
 	if host == null or not host.is_inside_tree():
 		return null
 	return host.get_tree().get_first_node_in_group(group)
 
 
+## 协作节点缺失时的降级返回值：等一帧就返回，让剧本照常往下走而不是卡死。
 static func _next_frame(host: Node) -> Signal:
 	assert(host != null and host.is_inside_tree(), "VNKit: host 必须已在场景树中")
 	return host.get_tree().process_frame

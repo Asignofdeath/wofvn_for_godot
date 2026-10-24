@@ -28,10 +28,15 @@ signal finished
 ## 在场景里放好就自动开播。脚本调用 start() 时无视它。
 @export var autostart := true
 
+## 载入后的图。start() 之前为 null。
 var graph: StoryGraph
+## 本局的参数表，_load_graph() 时从图里的 default 复制一份。
+## 存在自己身上而不是全局，所以同时播两场互不干扰，删节点就等于结束这场。
 var params: Dictionary = {}
+## 当前所在状态 id。给外部查进度用（不含「将要进入」的那个）。
 var current := ""
 
+## start() 到 _finish() 之间为 true，防止重复开播。
 var _running := false
 
 
@@ -161,6 +166,7 @@ func _check_collaborators() -> void:
 	push_warning("[StoryRunner] 缺少协作节点，用到时会跳过：\n%s" % "\n".join(missing))
 
 
+## 载图并把 errors / warnings 搬到编辑器日志里。有 errors 就返回（参数表也不初始化）。
 func _load_graph() -> void:
 	graph = StoryGraph.load_file(graph_path)
 	for msg in graph.errors:
@@ -206,6 +212,7 @@ func _play_state(st: Dictionary) -> bool:
 	return true
 
 
+## 收尾：置回未运行态并 emit。正常走完、校验失败、中途出错都走这里，保证 finished 一定发。
 func _finish() -> void:
 	_running = false
 	finished.emit()

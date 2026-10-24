@@ -8,10 +8,14 @@
 class_name StoryGraph
 extends RefCounted
 
+## 两种状态类型。chapter 要播脚本，end 只表示「到此为止」。
+## 只有这两种，是为了让图永远不可能变成第二个程序——没有分支节点、没有循环节点。
 const TYPE_CHAPTER := "chapter"
 const TYPE_END := "end"
 
+## 数据格式版本。目前只记录、不参与判断，将来字段不兼容时用来做迁移。
 var version := 1
+## 起始状态 id。空 = 校验报错，图不启动。
 var entry := ""
 ## id -> {id, type, chapter, pos, ...}
 var states: Dictionary = {}
@@ -25,10 +29,14 @@ var errors: Array[String] = []
 ## 不影响运行的问题：孤立节点、未连线
 var warnings: Array[String] = []
 
+## 参数名列表，顺序固定。Expression.execute 按位置传参，靠它把 Dictionary 摊成 Array。
 var _param_names: PackedStringArray = PackedStringArray()
+## guard 文本 -> Expression（null 表示解析失败）。同一句 guard 只编译一次。
 var _expr_cache: Dictionary = {}
 
 
+## 从文件载入。任何一步失败都只往 errors 里塞一句话然后返回，
+## 不抛异常、不返回 null —— 调用方永远拿到一个对象，看 errors 决定要不要播。
 static func load_file(path: String) -> StoryGraph:
 	var graph := StoryGraph.new()
 	if path == "":
@@ -74,10 +82,12 @@ func has_state(id: String) -> bool:
 	return states.has(id)
 
 
+## 取状态数据，不存在返回空字典（调用方判 is_empty 即可，不用先 has_state）。
 func get_state(id: String) -> Dictionary:
 	return states.get(id, {})
 
 
+## 边总数。transitions 是按起点分组存的，所以要累加。
 func transition_count() -> int:
 	var total := 0
 	for from_id in transitions:
@@ -93,6 +103,8 @@ func pick_transition(from_id: String, values: Dictionary) -> Dictionary:
 	return {}
 
 
+## 求一句 guard。空 guard 视为「恒真」，也就是默认边。
+## 编译失败或求值失败一律当作不命中（返回 false），不会把异常抛给主循环。
 func eval_guard(guard: String, values: Dictionary) -> bool:
 	if guard.strip_edges() == "":
 		return true
@@ -113,6 +125,9 @@ func eval_guard(guard: String, values: Dictionary) -> bool:
 
 ## ---- 内部 ----
 
+## 把原始字典摊平成本类字段，最后统一跑编译和校验。
+## 容错策略：单项坏（非对象、缺 id、id 重复）只记 errors 并跳过该项，
+## 剩下的照常载入——这样一份手改出错的图还能打开看，不是整个打不开。
 func _build(data: Dictionary) -> void:
 	version = int(data.get("version", 1))
 	entry = String(data.get("entry", ""))
@@ -168,12 +183,16 @@ func _build(data: Dictionary) -> void:
 	_validate()
 
 
+## 排序：priority 小的先，同 priority 保持 JSON 里的书写顺序（_order），
+## 这样加字段、换写法都不会让「默认边」意外换人。
 func _compare_transition(a: Dictionary, b: Dictionary) -> bool:
 	if int(a["priority"]) != int(b["priority"]):
 		return int(a["priority"]) < int(b["priority"])
 	return int(a["_order"]) < int(b["_order"])
 
 
+## 声明了 type 就按 type 掰，缺省当 int。JSON 的数字一律是 float，
+## 不做这一步的话 affection 会从 5 变成 5.0 再变成 5.0 加不完。
 func _default_value(p: Dictionary) -> Variant:
 	var t := String(p.get("type", "int"))
 	var d: Variant = p.get("default", null)
@@ -188,6 +207,8 @@ func _default_value(p: Dictionary) -> Variant:
 			return int(d) if d != null else 0
 
 
+## 载入时把全部 guard 预编译一遍。好处是两个：拼错的 guard 在启动时就报，
+## 不是走到那条边才报；运行时每次求值都命中缓存，不重复 parse。
 func _compile_guards() -> void:
 	for from_id in transitions:
 		for tr in transitions[from_id]:
@@ -231,6 +252,7 @@ func _check_guard_identifiers(guard: String) -> void:
 		errors.append("guard 引用了未声明的参数：%s（guard: %s）" % [word, guard])
 
 
+## 先把字符串字面量替换成 0，免得 "affection>=5" 里的单词被当成标识符扫出来。
 func _strip_string_literals(text: String) -> String:
 	var out := text
 	var re := RegEx.new()
@@ -241,6 +263,7 @@ func _strip_string_literals(text: String) -> String:
 	return out
 
 
+## 结构性校验。errors 决定「能不能播」，warnings 只提示、不拦。
 func _validate() -> void:
 	if entry == "":
 		errors.append("缺少 entry")

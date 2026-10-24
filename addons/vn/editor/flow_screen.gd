@@ -6,47 +6,70 @@
 @tool
 extends Control
 
+## 面板打开时尝试自动载入的图。只影响「打开面板时的默认动作」，不是项目配置。
 const DEFAULT_GRAPH := "res://demo/story/story_graph.json"
 
+## 顶栏、底栏的固定高度。画布拿走剩下的全部高度，所以这两个值也是唯一的高度常量。
 const TOP_H := 52
 const HINT_H := 26
 
-const C_BG := Color("#0d1117")
-const C_SURFACE := Color("#1a1f28")
-const C_SURFACE_HI := Color("#242b38")
-const C_BORDER := Color("#2a3040")
-const C_TEXT := Color("#e8e4dc")
-const C_MUTED := Color("#8a9aaa")
-const C_ACCENT := Color("#c4a882")
-const C_SCRIPT := Color("#c47a5a")
-const C_ERROR := Color("#e08080")
-const C_WARN := Color("#e0c080")
+## 配色。集中在这里是因为 GraphEdit 的主题只能逐个 set_theme_*_override，散在调用处改不动。
+const C_BG := Color("#0d1117")        ## 画布底色
+const C_SURFACE := Color("#1a1f28")   ## 顶栏 / 底栏 / 节点卡片底色
+const C_SURFACE_HI := Color("#242b38")## 节点标题条底色
+const C_BORDER := Color("#2a3040")    ## 分隔线、节点描边
+const C_TEXT := Color("#e8e4dc")      ## 节点标题文字
+const C_MUTED := Color("#8a9aaa")     ## 次要文字、次要按钮
+const C_ACCENT := Color("#c4a882")    ## 强调色：entry 节点、选中态、未保存标记
+const C_SCRIPT := Color("#c47a5a")    ## 章节节点的类型色
+const C_ERROR := Color("#e08080")     ## 错误
+const C_WARN := Color("#e0c080")      ## 提示 / 草稿态
 
+## 内存里的图数据，只管读写，不碰 UI
 var _doc := VNGraphDoc.new()
+## 有未保存改动。驱动顶栏「保存 •」的显示，不阻止任何操作
 var _dirty := false
 
+## 布局骨架：_root 竖直排队，顶栏 / 画布 / 底栏依次放入
 var _root: VBoxContainer
 var _top_wrap: PanelContainer
 var _top: HBoxContainer
 var _hint_wrap: PanelContainer
 var _hint_bar: HBoxContainer
+
+## 顶栏控件
 var _title: Label
 var _file_label: Label
 var _save_btn: Button
 var _stats: Label
 var _zoom_label: Label
 var _issue_btn: Button
+
+## 画布：唯一的 SIZE_EXPAND 子节点
 var _graph: GraphEdit
+
+## 底栏：左边操作提示，右边最近一次操作结果
 var _hint: Label
 var _status: Label
+
+## 问题浮层（错误 + 提示），靠锚点贴底，开关由 _issue_btn 控制
 var _issue_panel: PanelContainer
 var _issue_list: ItemList
+
+## 打开 / 保存 / 选章节脚本 / 新建章节脚本 共用同一个 FileDialog，
+## 靠 meta("purpose") 区分这次是哪种用途
 var _file_dialog: FileDialog
+
+## 「＋ 节点」下拉菜单
 var _add_menu: MenuButton
+
+## 节点编辑对话框，内容每次重建
 var _dialog: AcceptDialog
 var _dialog_body: VBoxContainer
+## 当前正在编辑的节点 id。为空表示对话框没打开
 var _dialog_id := ""
 
+## 上一帧的缩放值，用来判断是否需要刷新百分比文字
 var _last_zoom := 1.0
 
 
@@ -59,6 +82,7 @@ func _ready() -> void:
 		_set_hint("未打开图。点左上「打开」选择一份 story_graph.json")
 
 
+## 只在缩放真的变了之后才动 Label，避免每帧拼字符串。
 func _process(_delta: float) -> void:
 	if _graph == null:
 		return
@@ -284,6 +308,7 @@ func _bar_style(with_bottom_line: bool) -> StyleBoxFlat:
 	return sb
 
 
+## GraphEdit 的主题只能靠 override 打，做一个统一的入口，别在 _build_ui 里散着改。
 func _apply_graph_theme() -> void:
 	var panel := StyleBoxFlat.new()
 	panel.bg_color = C_BG
@@ -297,6 +322,8 @@ func _apply_graph_theme() -> void:
 
 ## ---- 打开 / 保存 ----
 
+## 载入文件并重建画布。失败时 _doc 内部保持原样（load_from 保证），
+## 所以打开一份坏文件不会把当前画布清空。
 func _open(p: String) -> void:
 	var issues := _doc.load_from(p)
 	_dirty = false
@@ -309,6 +336,7 @@ func _open(p: String) -> void:
 		_set_hint("已打开 %s" % p)
 
 
+## 只负责弹选择框，真正的载入在 _on_file_selected 里按 purpose 分派。
 func _on_open_pressed() -> void:
 	_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	_file_dialog.filters = PackedStringArray(["*.json ; 图数据"])
@@ -316,6 +344,7 @@ func _on_open_pressed() -> void:
 	_file_dialog.popup_centered_ratio(0.55)
 
 
+## 有路径就原地保存；没有路径（从没存过）先弹另存为。
 func _on_save_pressed() -> void:
 	var p := _doc.path.strip_edges()
 	if p == "":
@@ -327,6 +356,7 @@ func _on_save_pressed() -> void:
 	_save_to(p)
 
 
+## 落盘。先 _sync_positions() 把画布上的坐标收进数据，否则刚拖完的位置会丢。
 func _save_to(p: String) -> void:
 	_sync_positions()
 	_doc.path = p
@@ -343,6 +373,9 @@ func _save_to(p: String) -> void:
 	_set_hint("已保存 %s" % p)
 
 
+## 一个 FileDialog 服务四种用途，靠 meta("purpose") 分派：
+## open / save / chapter（选已有脚本）/ new_chapter（生成新脚本）。
+## 选完不重置 purpose 也无所谓，没人读旧值。
 func _on_file_selected(p: String) -> void:
 	var purpose := String(_file_dialog.get_meta("purpose", ""))
 	match purpose:
@@ -440,6 +473,8 @@ func _create_chapter(path: String) -> void:
 
 ## ---- 重建视图 ----
 
+## 按内存数据把整个画布重建一遍。只在结构变化（增删节点/边、换文件）时调用；
+## 纯移动节点不用重建，GraphNode 自己就在动。
 func _rebuild_all() -> void:
 	_sync_positions()
 	_graph.clear_connections()
@@ -462,6 +497,7 @@ func _rebuild_all() -> void:
 	_refresh_issues()
 
 
+## 造一个节点卡片：标题 = id（entry 前缀 ▶），正文 = 章节脚本状态 + 每条出边一行。
 func _add_node_ui(state: Dictionary) -> GraphNode:
 	var id := String(state["id"])
 	var kind := String(state["type"])
@@ -525,6 +561,8 @@ func _add_node_ui(state: Dictionary) -> GraphNode:
 	return node
 
 
+## 皮肤。四种状态再各复制一份是 GraphEdit 的要求（panel / panel_selected /
+## titlebar / titlebar_selected 是四个独立的 stylebox），不能复用同一个对象。
 func _style_node(node: GraphNode, kind: String, is_entry: bool) -> void:
 	var accent := C_SCRIPT if kind == "chapter" else C_MUTED
 	if is_entry:
@@ -571,6 +609,8 @@ func _style_node(node: GraphNode, kind: String, is_entry: bool) -> void:
 
 ## ---- 交互 ----
 
+## 双击节点开编辑框。GraphEdit 的 node_selected / node_deselected 不适合做这个，
+## 因为拖动也会触发选中，用 gui_input 判双击最直接。
 func _on_node_gui_input(event: InputEvent, node: GraphNode) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
@@ -579,6 +619,8 @@ func _on_node_gui_input(event: InputEvent, node: GraphNode) -> void:
 			accept_event()
 
 
+## 每次打开都清空重建 body：这样改了数据（比如换脚本、加边）之后重开就同步，
+## 不用在外面记「对话框里哪个控件对哪个字段」。
 func _open_dialog(id: String) -> void:
 	_dialog_id = id
 	var i := _doc.find_state(id)
@@ -659,6 +701,9 @@ func _open_dialog(id: String) -> void:
 	_dialog.popup_centered()
 
 
+## 一条出边的编辑行：目标（只读）+ guard + priority + 删除。
+## 条件框用 text_changed 即时写回数据，不重建画布（否则每敲一个字光标都会跳）；
+## 删除要改结构，所以要 _rebuild_all()。
 func _make_edge_row(tr: Dictionary) -> Control:
 	var from_id := String(tr["from"])
 	var to_id := String(tr["to"])
@@ -714,6 +759,8 @@ func _make_edge_row(tr: Dictionary) -> Control:
 	return row
 
 
+## 新增节点。位置取当前视口中心（图坐标 = 屏幕坐标 / zoom），
+## 再按已有节点数往下错开一点，连点几次不会全叠在一起。
 func _on_add_node(kind_id: int) -> void:
 	var kind := "chapter" if kind_id == 0 else "end"
 	var id := _doc.next_id("ch") if kind == "chapter" else "end"
@@ -730,6 +777,7 @@ func _on_add_node(kind_id: int) -> void:
 	_refresh_issues()
 
 
+## 拖线建边。先写数据再连视图，数据拒绝（自环 / 重复）就不连。
 func _on_connection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
 	var from_id := _id_of(String(from_node))
 	var to_id := _id_of(String(to_node))
@@ -746,6 +794,8 @@ func _on_connection_request(from_node: StringName, from_port: int, to_node: Stri
 		_set_hint("这条边已经存在")
 
 
+## 断开一条边。顺带把数据里对应的 transition 删掉，
+## 因为 _rebuild_all() 会按数据重连，只删视图的话它马上就回来了。
 func _on_disconnection_request(from_node: StringName, from_port: int, to_node: StringName, to_port: int) -> void:
 	_graph.disconnect_node(from_node, from_port, to_node, to_port)
 	var from_id := _id_of(String(from_node))
@@ -757,6 +807,8 @@ func _on_disconnection_request(from_node: StringName, from_port: int, to_node: S
 	_rebuild_all()
 
 
+## Delete 键删除。删节点会连带删掉它的所有出边和入边（VNGraphDoc.remove_state 负责）。
+## 先收集 id 再删，不要在遍历视图节点的同一个循环里改数据。
 func _on_delete_nodes_request(nodes: Array) -> void:
 	var ids: Array = []
 	for n in nodes:
@@ -769,6 +821,7 @@ func _on_delete_nodes_request(nodes: Array) -> void:
 	_touch()
 
 
+## 缩放到刚好装下全部节点，并把内容中心移到视口中心。
 func _fit_canvas() -> void:
 	var rect := Rect2()
 	var first := true
@@ -791,6 +844,7 @@ func _fit_canvas() -> void:
 	_zoom_label.text = "%d%%" % roundi(_graph.zoom * 100.0)
 
 
+## 视觉状态复位。不动节点坐标，节点位置属于数据，不该被一个视图按钮改掉。
 func _reset_view() -> void:
 	_graph.zoom = 1.0
 	_graph.scroll_offset = Vector2.ZERO
@@ -798,6 +852,7 @@ func _reset_view() -> void:
 	_zoom_label.text = "100%"
 
 
+## 问题浮层开关。浮层本身常驻（只是 visible=false），不重复创建。
 func _toggle_issues() -> void:
 	if _issue_panel != null:
 		_issue_panel.visible = not _issue_panel.visible
@@ -805,12 +860,14 @@ func _toggle_issues() -> void:
 
 ## ---- 辅助 ----
 
+## 把画布上的实际坐标写回数据。保存和重建之前都要调一次。
 func _sync_positions() -> void:
 	for n in _graph.get_children():
 		if n is GraphNode and n.has_meta("vn_id"):
 			_doc.set_state_pos(String(n.get_meta("vn_id")), (n as GraphNode).position_offset)
 
 
+## 按 id 找视图节点。找不到返回 null，调用方自己判。
 func _node_by_id(id: String) -> GraphNode:
 	for n in _graph.get_children():
 		if n is GraphNode and String(n.get_meta("vn_id", "")) == id:
@@ -818,6 +875,7 @@ func _node_by_id(id: String) -> GraphNode:
 	return null
 
 
+## GraphEdit 的信号给的是 Node.name（可能被引擎改写过），这里翻译回原 id。
 func _id_of(node_name: String) -> String:
 	var n := _graph.get_node_or_null(NodePath(node_name))
 	if n == null or not n.has_meta("vn_id"):
@@ -825,6 +883,7 @@ func _id_of(node_name: String) -> String:
 	return String(n.get_meta("vn_id"))
 
 
+## 节点数按画布上真实存在的卡片统计，不是按数据条数，这样重建漏节点能看出来。
 func _refresh_stats() -> void:
 	var count := 0
 	for n in _graph.get_children():
@@ -833,17 +892,21 @@ func _refresh_stats() -> void:
 	_stats.text = "%d 节点 · %d 连线" % [count, _doc.transitions.size()]
 
 
+## 标记有未保存改动。只影响「保存 •」的显示，不拦操作、不弹窗。
 func _touch() -> void:
 	_dirty = true
 	_save_btn.text = "保存 •"
 	_save_btn.add_theme_color_override("font_color", C_ACCENT)
 
 
+## 底栏右侧那格状态文字：只显示最近一次操作的结果，会被下一条覆盖。
 func _set_hint(msg: String) -> void:
 	if _status != null:
 		_status.text = msg
 
 
+## 重新收集问题：一半来自运行时同一套 StoryGraph 校验，一半来自章节脚本契约探测。
+## 用同一套校验的目的是让「面板显示无问题」和「运行时不会因为图停住」是同一个判断。
 func _refresh_issues() -> void:
 	if _issue_list == null:
 		return

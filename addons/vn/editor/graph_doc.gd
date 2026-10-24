@@ -11,8 +11,11 @@ extends RefCounted
 ## 保存时先写这个后缀的临时文件，再改名替换目标文件
 const TMP_SUFFIX := ".vntmp"
 
+## 当前编辑的文件路径。空 = 还没存过，保存时走另存为。
 var path := ""
+## 原样透传的字段，编辑器不解释
 var version := 1
+## 起始状态 id，原样透传
 var entry := ""
 ## 原样保留，编辑器不解释参数，只负责不丢
 var params: Dictionary = {}
@@ -49,6 +52,7 @@ func load_from(p: String) -> Array:
 	return issues
 
 
+## 清空成「新建」状态。只在载入成功后调用。
 func reset() -> void:
 	version = 1
 	entry = ""
@@ -92,6 +96,9 @@ func from_dict(d: Dictionary) -> void:
 		})
 
 
+## 把内存数据摊成可直接 JSON 化的字典。
+## 注意 pos 在这里才从 Vector2 变成 [x, y]：内存里用 Vector2 是为了算起来方便，
+## 落盘必须是数组，否则 JSON.stringify 会写出一串引擎私有格式。
 func to_dict() -> Dictionary:
 	var out_states: Array = []
 	for st in states:
@@ -153,6 +160,7 @@ func save_to(p: String) -> Error:
 
 ## ---- 查询 ----
 
+## 按 id 找下标，找不到返回 -1（返回下标而不是对象，是为了能直接改数组元素）
 func find_state(id: String) -> int:
 	for i in states.size():
 		if String(states[i]["id"]) == id:
@@ -160,6 +168,7 @@ func find_state(id: String) -> int:
 	return -1
 
 
+## 找 from→to 这条边。图里同一对节点之间最多一条边，所以 (from, to) 就能定位。
 func find_transition(from_id: String, to_id: String) -> int:
 	for i in transitions.size():
 		if String(transitions[i]["from"]) == from_id and String(transitions[i]["to"]) == to_id:
@@ -167,6 +176,7 @@ func find_transition(from_id: String, to_id: String) -> int:
 	return -1
 
 
+## 生成下一个没被占用的 id：ch01、ch02 …… 找不到（超过 1000 个）就退化成随机数。
 func next_id(prefix: String = "ch") -> String:
 	var i := 1
 	while i < 1000:
@@ -186,6 +196,8 @@ func add_state(id: String, type: String, chapter: String, pos: Vector2) -> bool:
 	return true
 
 
+## 删节点，连带删掉以它为起点或终点的所有边。
+## 不留悬空边是硬要求：留着的话运行时校验会报「目标状态不存在」。
 func remove_state(id: String) -> void:
 	var i := find_state(id)
 	if i >= 0:
