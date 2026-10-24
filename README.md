@@ -62,6 +62,8 @@ ERROR: res://demo/stage.tscn:19 - [ext_resource] referenced non-existent resourc
 
 进程不崩、场景正常加载。代价是场景里那个 `StoryRunner` 节点失去脚本，删掉它即可。**这是 demo 自己选择使用插件的结果，不是插件强制的。**
 
+判据、越界信号、已裁决的边界、加功能前的五问 —— 见 [docs/DESIGN.md](docs/DESIGN.md)。那份文档是这份 README 的展开版；两者冲突时以 `DESIGN.md` 为准。
+
 ---
 
 ## 快速开始
@@ -171,6 +173,7 @@ $GODOT --headless --path . --script res://tools/test_layout.gd
 
 | 文件 | 内容 |
 |---|---|
+| [docs/DESIGN.md](docs/DESIGN.md) | **设计的底线**：三个判据、动作 vs 结构、DSL 化信号、依赖方向、加功能前的五问、裁决记录 |
 | [docs/CONTRACT.md](docs/CONTRACT.md) | 运行时契约：四个组的完整签名、Signal 语义、降级与自检 |
 | [docs/GRAPH.md](docs/GRAPH.md) | 图数据格式：JSON 字段、guard 语法与限制、校验规则 |
 | [docs/EDITOR.md](docs/EDITOR.md) | 编辑器面板：每个按钮做什么、节点卡片怎么读、保存行为 |
