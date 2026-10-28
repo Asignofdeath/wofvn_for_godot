@@ -11,20 +11,32 @@
 `VNKit` 每次调用时做两件事：
 
 ```gdscript
-static func _find(host: Node, group: String) -> Node:
+static func _find(host: Node, group: String, method: String) -> Node:
 	if host == null or not host.is_inside_tree():
 		return null
-	return host.get_tree().get_first_node_in_group(group)
+	for n in host.get_tree().get_nodes_in_group(group):
+		if n != null and n.has_method(method):
+			return n
+	return null
 ```
 
 1. 从 `host`（你传给 `VNKit.xxx()` 的第一个参数，通常是章节脚本自己）拿到场景树
-2. 在整棵树里找**第一个**属于该组的节点
+2. 在整棵树里找**第一个**属于该组、**并且实现了要找的那个方法**的节点
 
-然后用 `has_method()` 检查方法存不存在，调用它，把它返回的 `Signal` 交回去给你 `await`。
+然后调用它，把它返回的 `Signal` 交回去给你 `await`。
 
 **这意味着：节点放在树的哪个位置都行，只要在同一个场景树里。** 不需要是 `host` 的子节点。
 
-> 注意：`get_first_node_in_group` 返回的顺序由引擎的树遍历决定。现在只支持「全局唯一一个」，同一组放两个不会报错，但用哪个不可控。将来真需要多实例时再谈。
+### 为什么按方法名挑，而不是只按组
+
+同一个组允许放多个节点。典型情况：背景和立绘分属两个节点，都加进 `vn_stage`——
+一个实现 `set_bg`，一个实现 `set_sprite`。只按组找的话，
+`get_first_node_in_group()` 返回谁全看场景树顺序，等于靠运气；
+按方法名挑之后，「一个组拆成几个节点」就变成合法用法，谁先谁后都不影响。
+
+模板里的 `Stage` 根和 `Backdrop` 子节点就是这么用的。
+
+> 同一个组的**同一个方法**仍然只能有一个实现。两个节点都实现 `set_bg` 时，先遍历到的那个生效。
 
 ---
 
@@ -40,34 +52,35 @@ func set_sprite(who: String, pose: String, slot: String = "center", fade: float 
 | `id` | 背景标识，由你定义（demo 里是 `"教室"` / `"夜晚"`） |
 | `who` | 角色名。同一个 `who` 复用同一个立绘实例 |
 | `pose` | 表情 / 姿态标识。**插件不解释它**，随你用在贴图切换、动画切换或忽略 |
-| `slot` | 槽位标识。插件不限定取值；`VNSpriteStage` 把它当「子节点名」用 |
+| `slot` | 槽位标识。插件不限定取值；模板把它当「立绘点位的名字」用 |
 | `fade` | 淡入时长（秒）。实现可以忽略它 |
 
-**返回的 Signal 必须在这段动作「视觉上完成」后 emit**，因为剧本是 `await` 它的：
+**返回的 Signal 在「视觉上完成」后 emit。** 手写剧本可以 `await` 它，等淡入结束再往下；DSL 生成的不 `await`（对齐 Web 版 `engine.js`：`bg` / `sprite` 启动即继续，台词照出）。两种都合法。
 
 ```gdscript
-await VNKit.bg(self, "教室", 0.8)   # 淡入播放完才继续下一句
-```
-
-调用方式：
-
-```gdscript
-await VNKit.bg(self, "教室", 0.8)
+await VNKit.bg(self, "教室", 0.8)                    # 手写：等淡入播完
+VNKit.bg(self, "教室", 0.8)                          # 不等：淡入在后台放
 await VNKit.sprite(self, "凛", "平静", "center", 0.4)
 ```
 
-### 现成的两个实现
+### 现成的实现（在模板里，不在 `addons/`）
 
-契约只规定「组名 + 方法签名」，不规定实现。仓库里有两份可以直接抄或直接用的：
+契约只规定「组名 + 方法签名」，不规定实现。这几个节点是**模板的肉**——
+它们不在 `addons/` 里，不是插件的一部分，想拷就拷，想无视就无视：
 
-| 实现 | 特点 | 文档 |
+| 节点 | 文件 | 特点 |
 |---|---|---|
-| `VNSpriteStage`（`addons/vn/stage/sprite_stage.gd`） | 槽位=同名子节点，按目录约定找图，缺图用占位色块，背景两层交叉淡入。**不算坐标** | [STAGE.md](STAGE.md) |
-| 模板里的 `demo/stage.gd` | 色块占位，只证明契约跑得通 | 属于模板内容，不属于 `addons/` |
+| `VNBackdrop` | `demo/ui/backdrop.gd` | 两层背景交叉淡入，缺图降级为底色。**不算坐标** |
+| `VNSpriteSlot` | `demo/ui/sprite_slot.gd` | 一块矩形站一个角色。`@tool`，编辑器里直接看见立绘 |
+| `VNDialogueBox` | `demo/ui/dialogue_box.gd` | 打字机 + 两次点击推进 |
+| `VNChoiceBox` | `demo/ui/choice_box.gd` | 按 `options` 现场生成按钮，返回选中下标 |
 
-两者都可以整个删掉换自己的。
+详情见 [STAGE.md](STAGE.md)。
 
-> **摆位不归插件管。** 立绘放在哪、多大，由场景里槽位节点的 anchors 决定，用 Godot 自己的 2D 视图调。曾经做过一个「立绘摆位面板」，已删除——理由见 [DESIGN.md](DESIGN.md) 的裁决记录。
+**三者都可以整个删掉换自己的。** 你自己实现的节点甚至不必是 `Control`——
+只要在组里、方法签名对得上，`Node` 再往下任何类型都行。
+
+> **摆位不归插件管。** 立绘放在哪、多大，由 `VNSpriteSlot` 的 anchors 决定，用 Godot 自己的 2D 视图调。曾经做过一个「立绘摆位面板」，已删除——见 [DESIGN.md](DESIGN.md)。
 
 ---
 
@@ -96,7 +109,7 @@ await VNKit.say(self, "凛", "你还没走？")
 ## `vn_choice_box` — 选项
 
 ```gdscript
-func present(options: Array) -> int        # 不是 Signal，是协程返回值
+func present(options: Array) -> int        # 协程返回值；await 它才拿到下标
 ```
 
 | 参数 | 说明 |
@@ -206,4 +219,4 @@ func play() -> void:
 | 对白一闪而过 | 对话框没加进 `vn_dialogue_box` 组，或方法名拼错 |
 | 选项永远选第一项 | 选项框缺失或 `present()` 没 `await` 就 `return` |
 | `guard` 永远不命中 | 参数名拼错（编辑器会在问题条报「引用了未声明的参数」） |
-| 图形对了但背景不动 | `set_bg` 返回的信号在动画开始就 emit 了，应在结束才 emit |
+| 背景停在旧图 / 不淡入 | `set_bg` 返回的信号在动画开始时就 emit 了，应在结束时 emit |

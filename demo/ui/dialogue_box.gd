@@ -1,11 +1,18 @@
-## 最简对话框：打字机 + 点击推进。
-## 契约：组 vn_dialogue_box，实现 show_line(speaker, text) -> Signal
+## 对话框：打字机 + 点击推进。
+##
+## 契约实现：组 vn_dialogue_box，方法 show_line(speaker, text) -> Signal
 ##   第一次点击：补完当前句
 ##   第二次点击：emit line_finished
+##
+## 拖进场景就能用——脚本自己在 _ready 里入组，不靠 .tscn 里写 groups。
+## 外观不在这里造：子节点结构（Panel / Name / Text / Hint）写在 demo/stage.tscn 里，
+## 要改字体、圆角、位置，直接改那个场景，别改脚本。
+class_name VNDialogueBox
 extends Control
 
 signal line_finished
 
+const GROUP := "vn_dialogue_box"
 const CHARS_PER_SEC := 42.0
 
 @onready var name_label: Label = $Panel/Name
@@ -18,6 +25,9 @@ var _waiting := false
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		return
+	add_to_group(GROUP)
 	visible = false
 
 

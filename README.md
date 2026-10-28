@@ -1,12 +1,11 @@
 # VN Toolkit for Godot 4
 
-给通用游戏引擎补一块 VN 开发用的工具，**不是**做一个 VN 专属运行时。
+Godot 的 VN 工具集，附一份可 F5 运行的项目模板。插件是可选工具箱，删掉不影响项目启动。
 
-工程形态 = **项目模板 + 插件**：`addons/vn/` 是插件（发布边界），`demo/` 是模板（能 F5 跑的最小 VN 骨架）。**两者都是本工程的交付内容**，都要维护。
+工程形态 = **项目模板 + 插件（可选工具箱）+ 代码库**：`addons/vn/` 是插件，也是代码库（发布边界）；`demo/` 是模板（能 F5 跑的最小 VN 骨架）；`tools/` 是回归脚本。**都是本工程的交付内容**，都要维护。
 
-> **当前只有一个工具：VN 运行时流程组织。**
-> 动效编辑、存档、翻译抽取等都没有做，见文末「进度」。
-> 立绘摆位曾经做成第二个工具，已删除——摆位是编辑器的活，Godot 的 2D 视图已经是它最好的形态。原因见 [docs/DESIGN.md](docs/DESIGN.md) 的裁决记录。
+> **工具箱现状：导图（章节路由）、剧本 DSL 编译器。** 全部条目见文末「进度」。
+> 立绘摆位曾做成工具，已删：摆放是 Godot 2D 视图的强项，重做只会更差。见 [docs/DESIGN.md](docs/DESIGN.md)。
 
 ---
 
@@ -15,8 +14,8 @@
 | | |
 |---|---|
 | 解决的问题 | VN 的流程（这一段播完接哪一段）在纯代码里写会很快变成一片 `if`，看不见全貌 |
-| 提供的方案 | 章节级路由图（JSON）+ GraphEdit 编辑器 + 可选路由器节点 + 可选舞台节点 |
-| 不提供的 | 运行时框架、UI 组件库、剧本 DSL、指令系统、项目管理面板、**任何编辑器里的布局/摆位工具** |
+| 提供的方案 | 章节级路由图（JSON）+ GraphEdit 编辑器 + 可选路由器节点 |
+| 交给引擎原生的 | 布局 / 摆位用 Godot 的 2D 视图；运行时框架、UI 组件库、剧本 DSL **运行时**、项目管理面板都不在范围内 |
 
 剧本仍然是 `.gd` 协程：
 
@@ -25,9 +24,9 @@ extends Node
 signal finished
 
 func play() -> void:
-	await VNKit.bg(self, "教室", 0.8)
+	VNKit.bg(self, "教室", 0.8)
+	VNKit.sprite(self, "凛", "平静", "center", 0.4)
 	await VNKit.say(self, "凛", "你还没走？")
-	await VNKit.sprite(self, "凛", "平静", "center", 0.4)
 
 	var picked: int = await VNKit.choice(self, ["我在等你。", "只是忘了时间。"])
 	if picked == 0:
@@ -36,13 +35,15 @@ func play() -> void:
 	finished.emit()
 ```
 
+背景和立绘不 `await`——启动就往下走，淡入在后台放；台词要 `await`，等玩家点击。想等淡入结束，就自己 `await` 它的返回值，两种写法都合法。
+
 图只回答「下一段是谁」，脚本回答「这一段怎么演」。两者互不知道对方存在。
 
 ---
 
 ## 八条禁止线
 
-出现任意一条，说明它已经开始变成框架，必须停下重设计。
+出现任意一条，说明它已经开始变成框架，该停下来看是哪一步走偏了。
 
 1. 用户代码必须 `extends` 插件的某个基类才能跑
 2. 插件引入 autoload / 全局单例
@@ -59,13 +60,13 @@ func play() -> void:
 
 ```
 $ mv addons/vn /tmp/ && godot --headless --path .
-ERROR: res://demo/stage.tscn:19 - [ext_resource] referenced non-existent resource
+ERROR: res://demo/stage.tscn:167 - Parse Error: [ext_resource] referenced non-existent resource at: res://addons/vn/core/story_runner.gd.
 [Stage] ready
 ```
 
-进程不崩、场景正常加载。代价是场景里那个 `StoryRunner` 节点失去脚本，删掉它即可。**这是模板选择使用插件的结果，不是插件强制的**——模板本来就是给这套插件用的，它依赖插件是应该的；插件反过来不能依赖模板。
+进程不崩、场景正常加载。代价是场景里那个 `StoryRunner` 节点失去脚本，删掉它即可。模板依赖插件是应该的；插件不能依赖模板。
 
-判据、越界信号、已裁决的边界、加功能前的五问 —— 见 [docs/DESIGN.md](docs/DESIGN.md)。那份文档是这份 README 的展开版；两者冲突时以 `DESIGN.md` 为准。
+判据、踩过的坑、依赖方向、加功能前的五问 —— 见 [docs/DESIGN.md](docs/DESIGN.md)。两者冲突时以代码和测试为准。
 
 ---
 
@@ -75,11 +76,11 @@ ERROR: res://demo/stage.tscn:19 - [ext_resource] referenced non-existent resourc
 
 把 `addons/vn/` 整个拷进项目，在 项目设置 → 插件 里启用「VN Toolkit」。
 
-顶部主屏幕会出现「VN 图」标签。
+顶部主屏幕会出现「VN」标签，里面两页：**导图**、**剧本**。
 
-### 2. 加三个协作节点
+### 2. 实现三个协作节点
 
-任意场景里放三个节点，加进对应的组，实现对应的方法：
+运行时呈现是**你的**：任意场景里放节点，加进对应的组，实现对应的方法。
 
 | 组名 | 需要实现 | 用在哪 |
 |---|---|---|
@@ -89,14 +90,24 @@ ERROR: res://demo/stage.tscn:19 - [ext_resource] referenced non-existent resourc
 
 不需要继承任何基类，不需要注册。**不实现也能跑**，对应动作会降级为「等一帧然后跳过」，并在启动时警告缺了哪个。
 
-`vn_stage` 可以直接用现成的 `VNSpriteStage` 节点（按目录约定找图 + 缺图占位 + 背景交叉淡入），也可以自己写。它**不负责摆位**——槽位就是它底下的同名 Control 子节点，位置用 Godot 编辑器摆。见 [docs/STAGE.md](docs/STAGE.md)。
+不想从零写，就把模板里那三个节点拷走（`demo/ui/backdrop.gd`、`sprite_slot.gd`、`dialogue_box.gd`）——它们**不在** `addons/` 里，是模板的肉，不是插件的骨。想自己实现就整份无视，契约只认组名和方法名。
+
+| 节点 | 进哪个组 | 干什么 |
+|---|---|---|
+| `VNBackdrop` | `vn_stage` | 两层背景交叉淡入 + 缺图降级。**不算坐标**，anchors 决定多大 |
+| `VNSpriteSlot` | —（槽位，不是契约节点） | 一块矩形里站一个角色。`@tool` 让编辑器里直接看见立绘 |
+| `VNDialogueBox` | `vn_dialogue_box` | 打字机 + 点击推进 |
+
+背景和立绘都进 `vn_stage` 组是**合法的**：`VNKit` 找协作节点时会校验方法名，各找各的。见 [docs/STAGE.md](docs/STAGE.md)。
 
 ### 3. 写剧本 + 画图
 
 - 剧本：一个 `extends Node` 的 `.gd`，有 `play()` 和 `signal finished`
-- 图：`res://story/story_graph.json`，或在「VN 图」标签里点「＋ 片段」画出来
+- 图：`res://story/story_graph.json`，或在「VN · 导图」标签里点「＋ 片段」画出来
 - 场景里放一个 `StoryRunner` 节点，把 `graph_path` 指向那份 JSON
-- 立绘站位：在场景里摆 `VNSpriteStage` 下的槽位节点（用 Godot 自己的 2D 视图，所见即所得）
+- 立绘站位：在 `Slots` 下摆 `VNSpriteSlot` 节点（用 Godot 自己的 2D 视图，勾上 `preview_who` 就能看见立绘）
+
+想少写代码，就在「VN · 剧本」标签里写 `.script.txt`，点「编译」生成同名 `.gd`（语法见 [docs/DSL.md](docs/DSL.md)）。**这层完全是可选的**：不打开面板，用任何编辑器写 `.script.txt` 再跑 `tools/compile_dsl.gd`，产物逐字节相同。
 
 详细说明见 [docs/](docs/)。
 
@@ -121,26 +132,38 @@ vn_story         → StoryRunner（可选的参数表持有者）
 
 ```
 addons/vn/                  ← 发布边界，可整体拷到别的项目
-├── vn_kit.gd               静态动作库（say / bg / sprite / choice / param）
+├── vn_kit.gd               静态动作库（say / bg / sprite / choice / add_param / set_param / get_param / join）
 ├── plugin.cfg
 ├── core/
 │   ├── story_graph.gd      图数据 + guard 求值（运行时可读，不依赖编辑器）
 │   └── story_runner.gd     可选路由器节点
-├── stage/
-│   └── sprite_stage.gd     可选舞台节点：换图 / 淡入 / 缺图占位（不算坐标）
 └── editor/
-    ├── vn_editor_plugin.gd 插件入口，挂主屏幕
+    ├── vn_editor_plugin.gd 插件入口，挂主屏幕（「导图」「剧本」两个标签）
+    ├── vn_theme.gd         两个面板共用的配色与底板样式
     ├── flow_screen.gd      图编辑器面板（GraphEdit + 交互 + 契约探测）
-    └── graph_doc.gd        图的 JSON ↔ 内存，原子写
+    ├── graph_doc.gd        图的 JSON ↔ 内存，原子写
+    └── dsl/
+        ├── dsl_parser.gd   .script.txt → 结构树（不认识动作）
+        ├── dsl_emit.gd     结构树 → GDScript 文本（纯函数 + 指令片段表）
+        ├── dsl_compile.gd  管线 + 磁盘 + 覆盖保护（唯一碰 IO 的地方）
+        ├── dsl_screen.gd   剧本面板（编辑 + 反馈；删掉它其他照常工作）
+        └── dsl_highlighter.gd  .script.txt 着色（只是显示）
 
 demo/                       ← 项目模板：能 F5 跑的最小 VN 骨架（工程组成内容）
+├── stage.tscn / stage.gd   舞台根：把 set_sprite 分派到点位
+└── ui/
+    ├── backdrop.gd         VNBackdrop   背景层（vn_stage 组）
+    ├── sprite_slot.gd      VNSpriteSlot 立绘点位（@tool 预览）
+    ├── dialogue_box.gd     VNDialogueBox 对话框（vn_dialogue_box 组）
+    └── choice_box.gd       选项框（vn_choice_box 组）
+
 tools/                      ← 回归脚本
 docs/                       ← 文档
 ```
 
-工程由四部分组成，都是交付物：**插件**（`addons/`）、**模板**（`demo/`）、**回归脚本**（`tools/`）、**文档**（`docs/`）。
+工程由这几部分组成，都是交付物：**插件**（`addons/`，也是代码库）、**模板**（`demo/`）、**回归脚本**（`tools/`）、**文档**（`docs/`）。
 
-模板要维护——打不开、脚本报错、引用缺失、跳转断裂都是真缺陷。但它不追求美术与文案完成度，规模只做到「证明这套工具能撑起一个 VN」。
+模板要维护——打不开、脚本报错、引用缺失、跳转断裂都是真缺陷。规模以 `tools/smoke.gd` 能跑通完整分支为准；美术与文案不设要求。
 
 ---
 
@@ -158,13 +181,25 @@ VN_PICK=1 $GODOT --headless --path . --script res://tools/smoke.gd
 # 编辑器面板布局回归（模拟拖控制台分隔条等父容器改尺寸）
 $GODOT --headless --path . --script res://tools/test_layout.gd
 
-# 舞台节点：契约时序 / 槽位映射 / 槽位互斥 / 缺图降级
+# 舞台呈现：接线 / 背景 / 立绘 / 对话框
 $GODOT --headless --path . --script res://tools/test_stage.gd
+
+# 剧本 DSL：解析 / 生成 / 生成物语法 / 覆盖保护 / 指令表
+$GODOT --headless --path . --script res://tools/test_dsl.gd
+
+# 剧本面板：插入模板、光标落点、默认值选中、脏标记（不测长相）
+$GODOT --headless --path . --script res://tools/test_screen.gd
+
+# 阻塞动作合流：等齐、不提前、不挂死（对应 engine.js 的 Promise.all）
+$GODOT --headless --path . --script res://tools/test_join.gd
+
+# 把目录里的 .script.txt 编译成同名 .gd
+$GODOT --headless --path . --script res://tools/compile_dsl.gd -- res://demo/story
 ```
 
 改布局或改编辑器面板后必须跑 `test_layout.gd`。它用 `VBoxContainer` 镜像编辑器的 `MainScreen`，在 8 种尺寸下断言面板撑满、画布等于面板减顶栏底栏。
 
-改过舞台节点后必须跑 `test_stage.gd`（20 项）。
+改过模板的呈现节点后必须跑 `test_stage.gd`（33 项）。
 
 ---
 
@@ -172,8 +207,9 @@ $GODOT --headless --path . --script res://tools/test_stage.gd
 
 | 工具 | 状态 |
 |---|---|
-| **VN 运行时流程组织** | **完成**（图数据 + guard + 路由器 + 编辑器 + 校验） |
-| 立绘摆位 | **已删除**（摆位归 Godot 的 2D 视图；只留下不计坐标的 `VNSpriteStage`） |
+| **导图（章节路由）** | **完成**（图数据 + guard + 路由器 + 编辑器 + 校验） |
+| **剧本 DSL 编译器** | **完成**（解析 / 生成 / 覆盖保护 / CLI / 剧本面板） |
+| 立绘摆位 | **不提供**（摆放归 Godot 的 2D 视图；背景 / 立绘点位 / 对话框是模板自带的普通节点） |
 | 动效 / 转场编辑器 | 未开始 |
 | 存档 / 回退 | 未开始（rollback 粒度方案 A/B/C 未定） |
 | 翻译抽取 | 未开始 |
@@ -183,7 +219,7 @@ $GODOT --headless --path . --script res://tools/test_stage.gd
 
 **单入口。** `StoryRunner.start()` 只能从 `graph.entry` 开始播，无法指定起始片段。所以「读档直达第 5 章」「章节选择」目前做不到。改法是给 `start()` 加一个可选的起始片段参数，属于扩展接口。
 
-**动作库偏薄。** 现在只有 `say / bg / sprite / choice / param`。`wait`、`hide_sprite`、`shake`、`bgm` 都没加——按 DESIGN.md 的规矩，同一个调用在真实剧本里写第三遍才提为方法。
+**动作库偏薄。** 现在只有 `say / bg / sprite / choice / param`，外加 `join`（阻塞动作合流，对应 Web 版 engine.js 的 `Promise.all(blockers)`；手写也可以直接调）。`wait`、`hide_sprite`、`shake`、`bgm` 都没加——按 DESIGN.md 的规矩，同一个调用在真实剧本里写第三遍才提为方法。
 
 ---
 
@@ -191,8 +227,9 @@ $GODOT --headless --path . --script res://tools/test_stage.gd
 
 | 文件 | 内容 |
 |---|---|
-| [docs/DESIGN.md](docs/DESIGN.md) | **设计的底线**：三个判据、动作 vs 结构、DSL 化信号、依赖方向、加功能前的五问（含第 0 问：引擎编辑器是否已做）、裁决记录 |
+| [docs/DESIGN.md](docs/DESIGN.md) | 三个判据、动作 vs 结构、依赖方向、加功能前的五问（含第 0 问）、踩过的坑 |
 | [docs/CONTRACT.md](docs/CONTRACT.md) | 运行时契约：四个组的完整签名、Signal 语义、降级与自检 |
 | [docs/GRAPH.md](docs/GRAPH.md) | 图数据格式：JSON 字段、guard 语法与限制、校验规则 |
 | [docs/EDITOR.md](docs/EDITOR.md) | 图编辑器面板：每个按钮做什么、片段卡片怎么读、保存行为 |
-| [docs/STAGE.md](docs/STAGE.md) | 可选舞台节点 `VNSpriteStage`：槽位=子节点、目录约定、不做什么 |
+| [docs/STAGE.md](docs/STAGE.md) | 模板里的呈现节点：`VNBackdrop` / `VNSpriteSlot` / `VNDialogueBox` / `ChoiceBox`，槽位=子节点 |
+| [docs/DSL.md](docs/DSL.md) | 剧本 DSL：语法、指令表、拍语义（对齐 engine.js）、覆盖保护、还没接的项 |

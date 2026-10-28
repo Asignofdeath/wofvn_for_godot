@@ -1,11 +1,13 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://demo/stage.gd" id="1_stage"]
-[ext_resource type="Script" path="res://demo/ui/dialogue_box.gd" id="2_dialogue"]
-[ext_resource type="Script" path="res://demo/ui/choice_box.gd" id="3_choice"]
-[ext_resource type="Script" path="res://addons/vn/core/story_runner.gd" id="4_runner"]
+[ext_resource type="Script" path="res://demo/ui/backdrop.gd" id="2_backdrop"]
+[ext_resource type="Script" path="res://demo/ui/sprite_slot.gd" id="3_slot"]
+[ext_resource type="Script" path="res://demo/ui/dialogue_box.gd" id="4_dialogue"]
+[ext_resource type="Script" path="res://demo/ui/choice_box.gd" id="5_choice"]
+[ext_resource type="Script" path="res://addons/vn/core/story_runner.gd" id="6_runner"]
 
-[node name="Stage" type="Control" groups=["vn_stage"]]
+[node name="Stage" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -15,11 +17,7 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_stage")
 
-[node name="StoryRunner" type="Node" parent="."]
-script = ExtResource("4_runner")
-graph_path = "res://demo/story/story_graph.json"
-
-[node name="BG" type="ColorRect" parent="."]
+[node name="Backdrop" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -27,20 +25,10 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.08, 0.09, 0.12, 1)
+script = ExtResource("2_backdrop")
+preview_id = "教室"
 
-[node name="Sprites" type="Node2D" parent="."]
-
-[node name="SlotLeft" type="Marker2D" parent="Sprites"]
-position = Vector2(400, 700)
-
-[node name="SlotCenter" type="Marker2D" parent="Sprites"]
-position = Vector2(960, 700)
-
-[node name="SlotRight" type="Marker2D" parent="Sprites"]
-position = Vector2(1520, 700)
-
-[node name="DialogueBox" type="Control" parent="." groups=["vn_dialogue_box"]]
+[node name="Slots" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -48,9 +36,54 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-script = ExtResource("2_dialogue")
 
-[node name="Panel" type="ColorRect" parent="DialogueBox"]
+[node name="left" type="Control" parent="Slots"]
+layout_mode = 1
+anchor_left = 0.06
+anchor_top = 0.14
+anchor_right = 0.36
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_slot")
+preview_who = "葵"
+
+[node name="center" type="Control" parent="Slots"]
+layout_mode = 1
+anchor_left = 0.36
+anchor_top = 0.14
+anchor_right = 0.64
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_slot")
+preview_who = "凛"
+preview_pose = "平静"
+
+[node name="right" type="Control" parent="Slots"]
+layout_mode = 1
+anchor_left = 0.64
+anchor_top = 0.14
+anchor_right = 0.94
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_slot")
+
+[node name="Dialogue" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_dialogue")
+
+[node name="Panel" type="ColorRect" parent="Dialogue"]
 layout_mode = 1
 anchors_preset = 12
 anchor_top = 1.0
@@ -65,7 +98,7 @@ grow_vertical = 0
 mouse_filter = 2
 color = Color(0.05, 0.05, 0.08, 0.86)
 
-[node name="Name" type="Label" parent="DialogueBox/Panel"]
+[node name="Name" type="Label" parent="Dialogue/Panel"]
 layout_mode = 0
 offset_left = 50.0
 offset_top = 18.0
@@ -74,7 +107,7 @@ offset_bottom = 66.0
 theme_override_colors/font_color = Color(0.98, 0.82, 0.55, 1)
 theme_override_font_sizes/font_size = 32
 
-[node name="Text" type="RichTextLabel" parent="DialogueBox/Panel"]
+[node name="Text" type="RichTextLabel" parent="Dialogue/Panel"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -89,7 +122,7 @@ mouse_filter = 2
 bbcode_enabled = true
 theme_override_font_sizes/normal_font_size = 30
 
-[node name="Hint" type="Label" parent="DialogueBox/Panel"]
+[node name="Hint" type="Label" parent="Dialogue/Panel"]
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
@@ -106,7 +139,7 @@ theme_override_colors/font_color = Color(0.98, 0.82, 0.55, 1)
 theme_override_font_sizes/font_size = 24
 text = "▼"
 
-[node name="ChoiceBox" type="Control" parent="." groups=["vn_choice_box"]]
+[node name="ChoiceBox" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -114,7 +147,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-script = ExtResource("3_choice")
+script = ExtResource("5_choice")
 
 [node name="Center" type="CenterContainer" parent="ChoiceBox"]
 layout_mode = 1
@@ -129,3 +162,7 @@ mouse_filter = 2
 custom_minimum_size = Vector2(560, 0)
 layout_mode = 2
 theme_override_constants/separation = 18
+
+[node name="StoryRunner" type="Node" parent="."]
+script = ExtResource("6_runner")
+graph_path = "res://demo/story/story_graph.json"

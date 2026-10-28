@@ -1,13 +1,21 @@
-## 最简选项框：动态生成按钮，返回选中下标。
+## 选项框：动态生成按钮，返回选中下标。
 ## 契约：组 vn_choice_box，实现 present(options) -> int
+##
+## 拖进场景就能用——脚本自己在 _ready 里入组，不靠 .tscn 里写 groups。
+class_name VNChoiceBox
 extends Control
 
 signal picked(index: int)
+
+const GROUP := "vn_choice_box"
 
 @onready var list: VBoxContainer = $Center/List
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		return
+	add_to_group(GROUP)
 	visible = false
 
 

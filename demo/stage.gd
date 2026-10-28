@@ -1,84 +1,81 @@
-## 舞台：背景、立绘槽位、UI 宿主。
-## 契约：组 vn_stage，实现 set_bg(id, fade) -> Signal 与 set_sprite(who, pose, slot, fade) -> Signal
+## 舞台根：只把 set_sprite 分派到对应的立绘点位。
 ##
-## 注意：立绘目前用 ColorRect 占位（按角色名取色的色块），第 2 阶段换成真正的立绘资源。
+## 契约实现：组 vn_stage，方法 set_sprite(who, pose, slot, fade) -> Signal
+##
+## 背景不在这里——那是 Backdrop 子节点（VNBackdrop），它自己也在 vn_stage 组里
+## 实现 set_bg。同一个组放两个节点是合法的：VNKit 找协作节点时会校验方法名。
+##
+## 舞台只做分派，不做渲染。立绘长什么样归 VNSpriteSlot，摆在哪归它的 anchors。
 extends Control
 
-const SLOTS := {
-	"left": "SlotLeft",
-	"center": "SlotCenter",
-	"right": "SlotRight",
-}
+const GROUP := "vn_stage"
 
-## 占位背景色板。真实项目应换成贴图或场景。
-const BG_COLORS := {
-	"教室": Color(0.17, 0.19, 0.26, 1.0),
-	"走廊": Color(0.22, 0.17, 0.15, 1.0),
-	"夜晚": Color(0.06, 0.07, 0.13, 1.0),
-}
-
-const ACTOR_SIZE := Vector2(240, 460)
-
-@onready var bg: ColorRect = $BG
-@onready var sprites: Node2D = $Sprites
-
-var _actors: Dictionary = {}
+var _warned: Dictionary = {}
 
 
 func _ready() -> void:
-	# 组名写在 stage.tscn 里（groups=["vn_stage"]），与 DialogueBox / ChoiceBox 一致
+	if Engine.is_editor_hint():
+		return
+	add_to_group(GROUP)
 	_apply_cjk_theme()
 	print("[Stage] ready")
 
 
 ## ---- 契约实现 ----
 
-func set_bg(id: String, fade: float = 0.4) -> Signal:
-	if not BG_COLORS.has(id):
-		push_warning("[Stage] 未定义的背景：%s" % id)
-	var target: Color = BG_COLORS.get(id, Color(0.12, 0.12, 0.14, 1.0))
-	var tween := create_tween()
-	tween.tween_property(bg, "color", target, fade)
-	return tween.finished
-
-
-func set_sprite(who: String, pose: String, slot: String = "center", fade: float = 0.2) -> Signal:
-	if not SLOTS.has(slot):
-		push_warning("[Stage] 未知槽位：%s，回退到 center" % slot)
-	var marker: Marker2D = get_node_or_null("Sprites/%s" % SLOTS.get(slot, "SlotCenter"))
-	if marker == null:
-		push_error("[Stage] 槽位节点缺失：%s" % slot)
+func set_sprite(
+	who: String,
+	pose: String = "default",
+	slot: String = "center",
+	fade: float = 0.2
+) -> Signal:
+	var target := _slot_for(slot)
+	if target == null:
+		push_error("[Stage] 场景里没有任何 VNSpriteSlot，立绘无处可放")
 		return get_tree().process_frame
 
-	var actor: ColorRect = _actors.get(who, null)
-	if actor == null:
-		actor = ColorRect.new()
-		actor.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		actor.color = _actor_color(who)
-		actor.size = ACTOR_SIZE
-		actor.modulate.a = 0.0
-		sprites.add_child(actor)
-		_actors[who] = actor
-		actor.position = _slot_position(marker)
+	# 同一个角色换点位：把旧点位清空，不然会有两个分身。
+	# 判断依据是点位自己记着谁，不用舞台再维护一份 who -> slot 的映射——
+	# 那样在两个角色互相顶替时会留下脏数据。
+	for s in _slots():
+		if s != target and s.current() == who:
+			s.clear_character()
 
-	actor.set_meta("pose", pose)
-
-	var duration := maxf(fade, 0.01)
-	var tween := create_tween().set_parallel(true)
-	tween.tween_property(actor, "position", _slot_position(marker), duration)
-	tween.tween_property(actor, "modulate:a", 1.0, duration)
-	return tween.finished
+	return target.set_character(who, pose, fade)
 
 
 ## ---- 内部 ----
 
-func _slot_position(marker: Marker2D) -> Vector2:
-	return marker.position - Vector2(ACTOR_SIZE.x * 0.5, ACTOR_SIZE.y)
+func _slots() -> Array[VNSpriteSlot]:
+	var out: Array[VNSpriteSlot] = []
+	var host: Node = get_node_or_null("Slots")
+	if host == null:
+		host = self
+	for c in host.get_children():
+		if c is VNSpriteSlot:
+			out.append(c)
+	return out
 
 
-func _actor_color(who: String) -> Color:
-	var hue := float(abs(hash(who)) % 360) / 360.0
-	return Color.from_hsv(hue, 0.32, 0.9, 0.9)
+## slot 名 → 点位。对不上就用第一个点位并警告一次，不中断剧情。
+func _slot_for(slot: String) -> VNSpriteSlot:
+	var all := _slots()
+	if all.is_empty():
+		return null
+	for s in all:
+		if s.slot_id() == slot:
+			return s
+	_warn_once("slot:" + slot,
+		"[Stage] 没有名为「%s」的立绘点位，改用「%s」。点位名 = 节点名或 slot_name"
+		% [slot, all[0].slot_id()])
+	return all[0]
+
+
+func _warn_once(key: String, msg: String) -> void:
+	if _warned.has(key):
+		return
+	_warned[key] = true
+	push_warning(msg)
 
 
 ## 开发期用系统字体显示中文。发布前应替换为项目内 FontFile。

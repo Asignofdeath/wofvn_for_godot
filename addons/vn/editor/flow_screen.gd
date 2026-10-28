@@ -14,16 +14,18 @@ const TOP_H := 52
 const HINT_H := 26
 
 ## 配色。集中在这里是因为 GraphEdit 的主题只能逐个 set_theme_*_override，散在调用处改不动。
-const C_BG := Color("#0d1117")        ## 画布底色
-const C_SURFACE := Color("#1a1f28")   ## 顶栏 / 底栏 / 片段卡片底色
-const C_SURFACE_HI := Color("#242b38")## 片段标题条底色
-const C_BORDER := Color("#2a3040")    ## 分隔线、片段描边
-const C_TEXT := Color("#e8e4dc")      ## 片段标题文字
-const C_MUTED := Color("#8a9aaa")     ## 次要文字、次要按钮
-const C_ACCENT := Color("#c4a882")    ## 强调色：entry 片段、选中态、未保存标记
-const C_SCRIPT := Color("#c47a5a")    ## 剧情片段的类型色
-const C_ERROR := Color("#e08080")     ## 错误
-const C_WARN := Color("#e0c080")      ## 提示 / 草稿态
+## 值本体在 vn_theme.gd，和剧本面板共用一份：改色只改那边，两个面板一起变。
+const T := preload("res://addons/vn/editor/vn_theme.gd")
+const C_BG := T.BG
+const C_SURFACE := T.SURFACE
+const C_SURFACE_HI := T.SURFACE_HI
+const C_BORDER := T.BORDER
+const C_TEXT := T.TEXT
+const C_MUTED := T.MUTED
+const C_ACCENT := T.ACCENT
+const C_SCRIPT := T.SCRIPT
+const C_ERROR := T.ERROR
+const C_WARN := T.WARN
 
 ## 内存里的图数据，只管读写，不碰 UI
 var _doc := VNGraphDoc.new()
@@ -300,16 +302,9 @@ func _build_ui() -> void:
 	_dialog.add_child(_dialog_body)
 
 
-## 顶栏 / 底栏的底板：底色 + 左右内边距，顶栏多一条下边线。
+## 顶栏 / 底栏的底板：实体在 vn_theme.gd，这里只转一手，免得改两个面板的样式要改两处。
 func _bar_style(with_bottom_line: bool) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = C_SURFACE
-	sb.content_margin_left = 14
-	sb.content_margin_right = 14
-	if with_bottom_line:
-		sb.border_color = C_BORDER
-		sb.border_width_bottom = 1
-	return sb
+	return T.bar_style(with_bottom_line)
 
 
 ## GraphEdit 的主题只能靠 override 打，做一个统一的入口，别在 _build_ui 里散着改。
